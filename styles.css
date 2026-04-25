@@ -247,6 +247,12 @@ button[aria-selected="true"] {
   font-size: 0.82rem;
 }
 
+.fuel-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .legend span {
   display: inline-flex;
   gap: 6px;

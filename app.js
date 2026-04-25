@@ -120,6 +120,12 @@ function renderKpis() {
     .join("");
 }
 
+function renderLegend() {
+  document.querySelector("#fuel-legend").innerHTML = visibleFuelKeys()
+    .map((fuel) => `<span><i class="legend-${fuel}"></i>${fuelLabels[fuel] || fuel}</span>`)
+    .join("");
+}
+
 function visibleFuelKeys() {
   if (!records.length) return [];
   return selectedFuel === "all" ? Object.keys(records[0].fuels) : [selectedFuel];
@@ -328,6 +334,7 @@ function render() {
   });
   renderSubtitle();
   renderKpis();
+  renderLegend();
   drawChart();
   renderTable();
 }
