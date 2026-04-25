@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Australia Fuel Stocks MSO Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div class="title-lockup">
+          <p class="eyebrow">DCCEEW weekly MSO statistics</p>
+          <h1>
+            <span>Australia fuel stocks</span>
+            <span class="title-icon" aria-hidden="true">
+              <img src="assets/aus-gas-pump.svg" alt="" />
+            </span>
+          </h1>
+          <p class="lede">Track weekly stock volumes against minimum stockholding obligation levels.</p>
+        </div>
+        <div class="status-card">
+          <span class="status-label">Latest stock week</span>
+          <strong id="latest-week">Loading...</strong>
+          <span id="latest-published">Published date unavailable</span>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="Dashboard filters">
+        <div class="control-group">
+          <div class="segmented" id="fuel-tabs" role="tablist" aria-label="Fuel type"></div>
+          <label class="toggle">
+            <input type="checkbox" id="show-days-cover" checked />
+            <span>Days cover</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="kpi-grid" aria-label="Latest fuel stock metrics"></section>
+
+      <section class="chart-panel" aria-labelledby="volume-chart-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="volume-chart-title">Stocks vs MSO level</h2>
+            <p id="chart-subtitle">Million litres by stock date</p>
+          </div>
+          <div class="legend" aria-label="Chart legend">
+            <span><i class="legend-gasoline"></i>Gasoline</span>
+            <span><i class="legend-kerosene"></i>Jet fuel</span>
+            <span><i class="legend-diesel"></i>Diesel</span>
+            <span><i class="legend-stock"></i>Stock</span>
+            <span><i class="legend-mso"></i>MSO</span>
+            <span><i class="legend-days"></i>Days cover</span>
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="volume-chart" width="1200" height="860" aria-label="Fuel stock line chart"></canvas>
+        </div>
+      </section>
+
+      <section class="table-panel" aria-labelledby="table-title">
+        <details>
+          <summary class="table-summary">
+            <span>
+              <span id="table-title" class="summary-title">Weekly observations</span>
+              <span class="summary-note">Source data, sorted newest first from <a href="https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics" target="_blank" rel="noopener noreferrer">dceew.gov.au</a> weekly reports data.</span>
+            </span>
+            <span class="chevron" aria-hidden="true"></span>
+          </summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Stock date</th>
+                  <th>Fuel</th>
+                  <th>Stock ML</th>
+                  <th>MSO ML</th>
+                  <th>Surplus ML</th>
+                  <th>MSO coverage</th>
+                  <th>Days cover</th>
+                </tr>
+              </thead>
+              <tbody id="data-table"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <script src="app.js?v=20260425-filter-group"></script>
+  </body>
+</html>

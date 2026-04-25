@@ -1,0 +1,116 @@
+[
+  {
+    "stockDate": "2026-03-17",
+    "publishedDate": "2026-03-21",
+    "source": "DCCEEW MSO statistics Power BI viewer",
+    "fuels": {
+      "gasoline": {
+        "volumeML": 1644,
+        "msoRequiredML": 1067,
+        "daysCover": 38
+      },
+      "kerosene": {
+        "volumeML": 828,
+        "msoRequiredML": 663,
+        "daysCover": 30
+      },
+      "diesel": {
+        "volumeML": 2804,
+        "msoRequiredML": 2742,
+        "daysCover": 30
+      }
+    }
+  },
+
+  {
+    "stockDate": "2026-03-24",
+    "publishedDate": "2026-03-28",
+    "source": "DCCEEW MSO statistics Power BI viewer",
+    "fuels": {
+      "gasoline": {
+        "volumeML": 1687,
+        "msoRequiredML": 1067,
+        "daysCover": 38
+      },
+      "kerosene": {
+        "volumeML": 828,
+        "msoRequiredML": 663,
+        "daysCover": 30
+      },
+      "diesel": {
+        "volumeML": 2706,
+        "msoRequiredML": 2742,
+        "daysCover": 29
+      }
+    }
+  },
+
+  {
+    "stockDate": "2026-03-31",
+    "publishedDate": "2026-04-04",
+    "source": "DCCEEW MSO statistics Power BI viewer",
+    "fuels": {
+      "gasoline": {
+        "volumeML": 1708,
+        "msoRequiredML": 1067,
+        "daysCover": 39
+      },
+      "kerosene": {
+        "volumeML": 846,
+        "msoRequiredML": 663,
+        "daysCover": 30
+      },
+      "diesel": {
+        "volumeML": 2634,
+        "msoRequiredML": 2742,
+        "daysCover": 29
+      }
+    }
+  },
+
+  {
+    "stockDate": "2026-04-07",
+    "publishedDate": "2026-04-11",
+    "source": "DCCEEW MSO statistics Power BI viewer",
+    "fuels": {
+      "gasoline": {
+        "volumeML": 1643,
+        "msoRequiredML": 1067,
+        "daysCover": 38
+      },
+      "kerosene": {
+        "volumeML": 773,
+        "msoRequiredML": 663,
+        "daysCover": 28
+      },
+      "diesel": {
+        "volumeML": 2825,
+        "msoRequiredML": 2742,
+        "daysCover": 31
+      }
+    }
+  },
+
+  {
+    "stockDate": "2026-04-14",
+    "publishedDate": "2026-04-18",
+    "source": "DCCEEW MSO statistics Power BI viewer",
+    "fuels": {
+      "gasoline": {
+        "volumeML": 1977,
+        "msoRequiredML": 1067,
+        "daysCover": 46
+      },
+      "kerosene": {
+        "volumeML": 834,
+        "msoRequiredML": 663,
+        "daysCover": 30
+      },
+      "diesel": {
+        "volumeML": 2886,
+        "msoRequiredML": 2742,
+        "daysCover": 31
+      }
+    }
+  }
+]
