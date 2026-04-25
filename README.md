@@ -12,7 +12,17 @@ Open `http://localhost:8000`.
 
 ## Publish
 
-The site is static and can be published with GitHub Pages. The included `Deploy GitHub Pages` workflow deploys the repository root on pushes to `main`.
+The site is static and can be published with GitHub Pages.
+
+Recommended repo setting:
+
+- Settings -> Pages -> Build and deployment -> Static HTML
+- Branch: `main`
+- Folder: `/ (root)`
+
+The `.nojekyll` marker is included so GitHub Pages serves this as plain static HTML.
+
+The included `Deploy GitHub Pages` workflow can also deploy the repository root if the repository is configured to use GitHub Actions for Pages. If GitHub asks you to choose between Jekyll and Static HTML, choose Static HTML.
 
 ## Data
 
