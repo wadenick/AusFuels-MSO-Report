@@ -420,9 +420,10 @@ td:nth-child(5).negative {
   .toggle {
     justify-content: center;
   }
-}
 
   h1 {
     justify-content: center;
     max-width: 100%;
   }
+
+}
