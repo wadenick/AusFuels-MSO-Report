@@ -414,7 +414,6 @@ td:nth-child(5).negative {
   }
 
   button {
-    flex: 1 1 calc(50% - 8px);
     padding: 0 10px;
   }
 
@@ -422,3 +421,7 @@ td:nth-child(5).negative {
     justify-content: center;
   }
 }
+
+  .h1 {
+    justify-content: center;
+  }
