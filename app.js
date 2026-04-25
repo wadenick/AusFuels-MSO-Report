@@ -33,6 +33,7 @@ const chartLayout = {
 let records = [];
 let selectedFuel = "all";
 let showDaysCover = true;
+let chartHitTargets = [];
 
 const formatDate = new Intl.DateTimeFormat("en-AU", {
   day: "2-digit",
@@ -198,6 +199,7 @@ function roundedRect(ctx, x, y, width, height, radius) {
 function drawChart() {
   if (!records.length) return;
   const canvas = document.querySelector("#volume-chart");
+  chartHitTargets = [];
   const series = selectedSeries();
   const wrapHeight =
     chartLayout.top +
@@ -290,6 +292,21 @@ function drawChart() {
     const msoPoints = item.points.map((point, index) => ({ x: x(index), y: yVolume(point.msoRequiredML) }));
     const daysPoints = item.points.map((point, index) => ({ x: x(index), y: yDays(point.daysCover) }));
 
+    stockPoints.forEach((chartPoint, index) => {
+      const point = item.points[index];
+      chartHitTargets.push({
+        x: chartPoint.x,
+        y: chartPoint.y,
+        color: item.color,
+        fuelName: item.fuelName,
+        stockDate: point.stockDate,
+        volumeML: point.volumeML,
+        msoRequiredML: point.msoRequiredML,
+        daysCover: point.daysCover,
+        surplusML: point.volumeML - point.msoRequiredML,
+      });
+    });
+
     drawLine(ctx, msoPoints, item.color, [8, 7]);
     drawLine(ctx, stockPoints, item.color);
     drawPoints(ctx, stockPoints, item.color);
@@ -310,6 +327,53 @@ function drawChart() {
       ctx.fillText(label, x(index), panelBottom + 22);
     });
   });
+}
+
+function hideChartTooltip() {
+  const tooltip = document.querySelector("#chart-tooltip");
+  tooltip.style.display = "none";
+}
+
+function renderChartTooltip(event) {
+  const canvas = document.querySelector("#volume-chart");
+  const tooltip = document.querySelector("#chart-tooltip");
+  const canvasRect = canvas.getBoundingClientRect();
+  const wrapRect = canvas.parentElement.getBoundingClientRect();
+  const pointer = {
+    x: event.clientX - canvasRect.left,
+    y: event.clientY - canvasRect.top,
+  };
+  const nearest = chartHitTargets
+    .map((target) => ({
+      target,
+      distance: Math.hypot(target.x - pointer.x, target.y - pointer.y),
+    }))
+    .filter((item) => item.distance <= 12)
+    .sort((a, b) => a.distance - b.distance)[0]?.target;
+
+  if (!nearest) {
+    hideChartTooltip();
+    canvas.style.cursor = "default";
+    return;
+  }
+
+  const delta = `${nearest.surplusML >= 0 ? "+" : ""}${numberFormat.format(nearest.surplusML)} ML`;
+  tooltip.innerHTML = `
+    <strong style="color: ${nearest.color}">${nearest.fuelName} · ${formatDate.format(parseDate(nearest.stockDate))}</strong>
+    <span>Stock: ${numberFormat.format(nearest.volumeML)} ML</span>
+    <span>MSO: ${numberFormat.format(nearest.msoRequiredML)} ML</span>
+    <span>Surplus: ${delta}</span>
+    <span>Days cover: ${nearest.daysCover}</span>
+  `;
+  tooltip.style.display = "block";
+
+  const left = event.clientX - wrapRect.left + 14;
+  const top = event.clientY - wrapRect.top + 14;
+  const maxLeft = wrapRect.width - tooltip.offsetWidth - 8;
+  const maxTop = wrapRect.height - tooltip.offsetHeight - 8;
+  tooltip.style.left = `${Math.max(8, Math.min(left, maxLeft))}px`;
+  tooltip.style.top = `${Math.max(8, Math.min(top, maxTop))}px`;
+  canvas.style.cursor = "pointer";
 }
 
 function renderTable() {
@@ -364,6 +428,9 @@ document.querySelector("#show-days-cover").addEventListener("change", (event) =>
   showDaysCover = event.target.checked;
   render();
 });
+
+document.querySelector("#volume-chart").addEventListener("pointermove", renderChartTooltip);
+document.querySelector("#volume-chart").addEventListener("pointerleave", hideChartTooltip);
 
 window.addEventListener("resize", drawChart);
 
