@@ -23,6 +23,13 @@ const volumeAxis = {
   ticks: [500, 1500, 2500, 3000],
 };
 
+const chartLayout = {
+  panelHeight: 174,
+  panelGap: 94,
+  top: 44,
+  bottom: 56,
+};
+
 let records = [];
 let selectedFuel = "all";
 let showDaysCover = true;
@@ -191,6 +198,14 @@ function roundedRect(ctx, x, y, width, height, radius) {
 function drawChart() {
   if (!records.length) return;
   const canvas = document.querySelector("#volume-chart");
+  const series = selectedSeries();
+  const wrapHeight =
+    chartLayout.top +
+    chartLayout.bottom +
+    chartLayout.panelHeight * series.length +
+    chartLayout.panelGap * Math.max(series.length - 1, 0);
+  canvas.parentElement.style.height = `${wrapHeight}px`;
+
   const ctx = canvas.getContext("2d");
   const ratio = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -199,18 +214,15 @@ function drawChart() {
   ctx.scale(ratio, ratio);
 
   const width = rect.width;
-  const height = rect.height;
-  const series = selectedSeries();
-  const pad = { top: 44, right: showDaysCover ? 56 : 22, bottom: 56, left: 72 };
-  const panelGap = series.length > 1 ? 94 : 0;
+  const pad = { top: chartLayout.top, right: showDaysCover ? 56 : 22, bottom: chartLayout.bottom, left: 72 };
+  const panelGap = chartLayout.panelGap;
+  const panelH = chartLayout.panelHeight;
   const plotW = width - pad.left - pad.right;
-  const availableH = height - pad.top - pad.bottom - panelGap * (series.length - 1);
-  const panelH = availableH / series.length;
   const x = (index) => pad.left + (records.length === 1 ? plotW / 2 : (index / (records.length - 1)) * plotW);
 
-  ctx.clearRect(0, 0, width, height);
+  ctx.clearRect(0, 0, rect.width, rect.height);
   ctx.fillStyle = colors.paper;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, rect.width, rect.height);
 
   ctx.font = "12px Inter, system-ui, sans-serif";
   ctx.lineWidth = 1;
