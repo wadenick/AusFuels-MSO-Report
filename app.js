@@ -102,6 +102,7 @@ function renderTabs() {
 function renderKpis() {
   const grid = document.querySelector("#kpi-grid");
   grid.innerHTML = latestByFuel()
+    .filter((item) => selectedFuel === "all" || item.fuel === selectedFuel)
     .map((item) => {
       const isShort = item.surplusML < 0;
       const delta = `${isShort ? "" : "+"}${numberFormat.format(item.surplusML)} ML`;
