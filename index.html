@@ -50,7 +50,10 @@
             <span><i class="legend-stock"></i>Stock</span>
             <span><i class="legend-mso"></i>MSO</span>
             <span><i class="legend-days"></i>Days cover</span>
-            <span id="price-legend"><i class="legend-price"></i>Sydney TGP</span>
+            <span id="price-legend" class="has-help" tabindex="0">
+              <i class="legend-price"></i>Sydney TGP
+              <span class="help-tooltip" role="tooltip">Terminal Gate Price average from AIP; not a retail pump price average.</span>
+            </span>
           </div>
         </div>
         <div class="canvas-wrap">
@@ -75,7 +78,12 @@
                   <th>Stock date</th>
                   <th>Fuel</th>
                   <th>Trend</th>
-                  <th>Sydney TGP</th>
+                  <th>
+                    <span class="has-help" tabindex="0">
+                      Sydney TGP
+                      <span class="help-tooltip" role="tooltip">Terminal Gate Price average from AIP; not a retail pump price average.</span>
+                    </span>
+                  </th>
                   <th>Stock ML</th>
                   <th>MSO ML</th>
                   <th>Surplus ML</th>

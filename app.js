@@ -26,9 +26,9 @@ const volumeAxis = {
 
 const chartLayout = {
   panelHeight: 174,
-  panelGap: 116,
+  panelGap: 136,
   top: 44,
-  bottom: 84,
+  bottom: 104,
 };
 
 let records = [];
@@ -256,7 +256,7 @@ function drawChart() {
     const cardX = 14;
     const cardY = panelTop - 38;
     const cardW = width - 28;
-    const cardH = panelH + 110;
+    const cardH = panelH + 130;
     const maxDays = niceMax(Math.max(...item.points.map((point) => point.daysCover)) * 1.15);
     const prices = item.points.map((point) => point.price?.priceCpl).filter(Boolean);
     const priceMin = prices.length ? Math.min(...prices) : 0;
@@ -265,8 +265,8 @@ function drawChart() {
     const yVolume = (value) =>
       panelBottom - ((value - volumeAxis.min) / (volumeAxis.max - volumeAxis.min)) * panelH;
     const yDays = (value) => panelBottom - (value / maxDays) * panelH;
-    const priceBandTop = panelBottom + 42;
-    const priceBandH = 22;
+    const priceBandTop = panelBottom + 44;
+    const priceBandH = 44;
     const yPrice = (value) => priceBandTop + priceBandH - ((value - priceMin) / priceSpan) * priceBandH;
 
     ctx.save();
@@ -361,9 +361,9 @@ function drawChart() {
         .filter(Boolean);
       ctx.save();
       ctx.fillStyle = colors.muted;
-      ctx.textAlign = "right";
+      ctx.textAlign = "left";
       ctx.font = "10px Inter, system-ui, sans-serif";
-      ctx.fillText("Sydney TGP", pad.left - 10, priceBandTop + priceBandH / 2);
+      ctx.fillText("Sydney TGP", pad.left, priceBandTop + priceBandH / 2);
       drawLine(ctx, pricePoints, colors.price, [1, 6], 2);
       ctx.restore();
     }

@@ -259,6 +259,42 @@ button[aria-selected="true"] {
   align-items: center;
 }
 
+.has-help {
+  position: relative;
+  cursor: help;
+  outline: none;
+}
+
+.help-tooltip {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  display: block;
+  width: min(260px, 76vw);
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 28px rgba(23, 33, 43, 0.14);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-transform: none;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.has-help:hover .help-tooltip,
+.has-help:focus .help-tooltip,
+.has-help:focus-visible .help-tooltip {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
 .legend i {
   display: inline-block;
   width: 22px;
