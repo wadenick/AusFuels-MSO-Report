@@ -386,11 +386,14 @@ function renderSparkline(row) {
   const width = 124;
   const height = 34;
   const pad = { x: 5, y: 5 };
-  const weeks = records.map((week) => ({
-    stockDate: week.stockDate,
-    volumeML: week.fuels[row.fuel].volumeML,
-    msoRequiredML: week.fuels[row.fuel].msoRequiredML,
-  }));
+  const rowDate = parseDate(row.stockDate);
+  const weeks = records
+    .filter((week) => parseDate(week.stockDate) <= rowDate)
+    .map((week) => ({
+      stockDate: week.stockDate,
+      volumeML: week.fuels[row.fuel].volumeML,
+      msoRequiredML: week.fuels[row.fuel].msoRequiredML,
+    }));
   const values = weeks.flatMap((week) => [week.volumeML, week.msoRequiredML]);
   const min = Math.min(...values);
   const max = Math.max(...values);
