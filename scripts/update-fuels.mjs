@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 const SOURCE_URL =
   "https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics";
 const DATA_PATH = new URL("../data/fuels.json", import.meta.url);
+const REQUEST_TIMEOUT_MS = 30000;
 
 function parseDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -28,14 +29,30 @@ function extractPublishedStatus(html) {
   };
 }
 
+async function fetchPage(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": "AusFuels-MSO-Report data updater (+https://github.com/wadenick/AusFuels-MSO-Report)",
+      },
+    });
+  } catch (error) {
+    const cause = error.cause ? ` Cause: ${error.cause.code ?? error.cause.message ?? error.cause}` : "";
+    throw new Error(`Could not fetch DCCEEW status page: ${error.message}.${cause}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function main() {
   const records = JSON.parse(await fs.readFile(DATA_PATH, "utf8"));
   const localLatest = latestLocalStockDate(records);
-  const response = await fetch(SOURCE_URL, {
-    headers: {
-      "user-agent": "AusFuels-MSO-Report data updater",
-    },
-  });
+  const response = await fetchPage(SOURCE_URL);
 
   if (!response.ok) {
     throw new Error(`DCCEEW page request failed with HTTP ${response.status}`);
@@ -60,6 +77,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
+  console.warn(error.message);
+  console.warn(
+    "Skipping automated data update for this run. Existing data/fuels.json will remain unchanged and Pages can still deploy.",
+  );
 });
