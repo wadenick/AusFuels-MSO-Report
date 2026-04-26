@@ -10,7 +10,8 @@ const SOURCE_URLS = [
 ];
 const DATA_PATH = new URL("../data/fuels.json", import.meta.url);
 const POWERBI_DEBUG_DIR = new URL("../artifacts/powerbi-debug/", import.meta.url);
-const REQUEST_TIMEOUT_MS = 120000;
+const POWERBI_REPORT_URL = process.env.POWERBI_REPORT_URL?.trim() || null;
+const REQUEST_TIMEOUT_MS = 45000;
 const POWERBI_TIMEOUT_MS = 90000;
 const USER_AGENT = "AusFuels-MSO-Report data updater (+https://github.com/wadenick/AusFuels-MSO-Report)";
 const FUEL_LABELS = {
@@ -205,6 +206,13 @@ function completeFuelRecord(fuels) {
   });
 }
 
+function latestLocalRequirements(records) {
+  const latest = records.toSorted((a, b) => parseDate(a.stockDate) - parseDate(b.stockDate)).at(-1);
+  if (!latest) return {};
+
+  return Object.fromEntries(Object.entries(latest.fuels).map(([fuel, values]) => [fuel, values.msoRequiredML]));
+}
+
 async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
   let chromium;
 
@@ -257,7 +265,7 @@ async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
 
     await page.goto(powerBiUrl, { waitUntil: "domcontentloaded", timeout: POWERBI_TIMEOUT_MS });
     await page.waitForLoadState("networkidle", { timeout: POWERBI_TIMEOUT_MS }).catch(() => {});
-    await page.waitForTimeout(10000);
+    await page.waitForTimeout(15000);
 
     const bodyText = await page.locator("body").textContent({ timeout: 10000 }).catch(() => "");
     if (bodyText) textCandidates.unshift(bodyText);
@@ -354,15 +362,16 @@ async function fetchWithCurl(url) {
       "curl",
       [
         "--fail-with-body",
+        "--http1.1",
         "--location",
         "--silent",
         "--show-error",
         "--max-time",
         String(Math.ceil(REQUEST_TIMEOUT_MS / 1000)),
         "--retry",
-        "2",
+        "1",
         "--retry-delay",
-        "10",
+        "3",
         "--user-agent",
         USER_AGENT,
         "--header",
@@ -410,17 +419,36 @@ async function fetchPage() {
 async function main() {
   const records = JSON.parse(await fs.readFile(DATA_PATH, "utf8"));
   const localLatest = latestLocalStockDate(records);
-  const response = await fetchPage();
+  let status = {
+    lastUpdatedText: null,
+    latestStockHeldText: null,
+    specialUpdateText: null,
+  };
+  let powerBiUrl = POWERBI_REPORT_URL;
+  let msoRequirements = latestLocalRequirements(records);
 
-  if (!response.ok) {
-    throw new Error(`DCCEEW page request failed with HTTP ${response.status}`);
+  try {
+    const response = await fetchPage();
+
+    if (!response.ok) {
+      throw new Error(`DCCEEW page request failed with HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+    status = extractPublishedStatus(html);
+    powerBiUrl = extractPowerBiUrl(html) ?? POWERBI_REPORT_URL;
+    msoRequirements = {
+      ...msoRequirements,
+      ...extractMsoRequirements(html),
+    };
+  } catch (error) {
+    if (!POWERBI_REPORT_URL) throw error;
+
+    console.warn(error.message);
+    console.warn("Falling back to POWERBI_REPORT_URL because the DCCEEW status page could not be fetched.");
   }
 
-  const html = await response.text();
-  const status = extractPublishedStatus(html);
-  const powerBiUrl = extractPowerBiUrl(html);
   const decodedPowerBi = powerBiUrl ? decodePowerBiViewParameter(powerBiUrl) : null;
-  const msoRequirements = extractMsoRequirements(html);
 
   console.log(`Local latest stock date: ${localLatest}`);
   console.log(`DCCEEW latest stock text: ${status.latestStockHeldText ?? "not found"}`);

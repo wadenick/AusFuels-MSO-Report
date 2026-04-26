@@ -36,4 +36,4 @@ The dashboard reads weekly observations from `data/fuels.json`. Each record is e
 
 Each fuel entry should contain `volumeML`, `msoRequiredML`, and `daysCover`.
 
-The `Update fuel data` workflow is scheduled for normal Saturday publication and an extra Sunday pass for exceptions. DCCEEW publishes the weekly figures inside a Power BI viewer, so the included updater currently checks publication status and logs a clear message until the Power BI extraction endpoint is wired in.
+The `Update fuel data` workflow is scheduled for normal Saturday publication and an extra Sunday pass for exceptions. The updater discovers the embedded Power BI report URL from the DCCEEW page, launches a headless Chromium scrape in GitHub Actions, and only writes `data/fuels.json` when it can assemble a complete weekly record for gasoline, kerosene, and diesel. If the DCCEEW status page is unavailable from the runner, the workflow falls back to the current known Power BI URL and uploads scrape diagnostics as a `powerbi-debug` artifact.

@@ -36,6 +36,8 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Check DCCEEW publication status
+        env:
+          POWERBI_REPORT_URL: https://app.powerbi.com/view?r=eyJrIjoiMzcyZmE4ZjgtOGRjNy00NGM3LWExYTktMTk2NzU2NWEzNzkzIiwidCI6IjhjM2M4MWJjLTJiM2MtNDRhZi1iM2Y3LTZmNjIwYjM5MTBlZSJ9
         run: node scripts/update-fuels.mjs
 
       - name: Upload Power BI scrape diagnostics
