@@ -2,6 +2,11 @@
 
 A small, dependency-free dashboard for tracking Australia's weekly fuel stock volumes against minimum stockholding obligation levels.
 
+
+## Demo
+
+See it live in GitHub Pages in this repo at `https://wadenick.github.io/AusFuels-MSO-Report/`
+
 ## Run locally
 
 ```sh
