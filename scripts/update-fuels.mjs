@@ -1,9 +1,16 @@
 import fs from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
-const SOURCE_URL =
-  "https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics";
+const execFileAsync = promisify(execFile);
+
+const SOURCE_URLS = [
+  "https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics",
+  "https://dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics",
+];
 const DATA_PATH = new URL("../data/fuels.json", import.meta.url);
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 120000;
+const USER_AGENT = "AusFuels-MSO-Report data updater (+https://github.com/wadenick/AusFuels-MSO-Report)";
 
 function parseDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -29,30 +36,96 @@ function extractPublishedStatus(html) {
   };
 }
 
-async function fetchPage(url) {
+async function fetchWithNode(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       signal: controller.signal,
       headers: {
         accept: "text/html,application/xhtml+xml",
-        "user-agent": "AusFuels-MSO-Report data updater (+https://github.com/wadenick/AusFuels-MSO-Report)",
+        "user-agent": USER_AGENT,
       },
     });
+    return {
+      ok: response.ok,
+      status: response.status,
+      text: () => response.text(),
+      via: "node-fetch",
+      url,
+    };
   } catch (error) {
     const cause = error.cause ? ` Cause: ${error.cause.code ?? error.cause.message ?? error.cause}` : "";
-    throw new Error(`Could not fetch DCCEEW status page: ${error.message}.${cause}`);
+    throw new Error(`Node fetch failed for ${url}: ${error.message}.${cause}`);
   } finally {
     clearTimeout(timeout);
   }
 }
 
+async function fetchWithCurl(url) {
+  try {
+    const { stdout } = await execFileAsync(
+      "curl",
+      [
+        "--fail-with-body",
+        "--location",
+        "--silent",
+        "--show-error",
+        "--max-time",
+        String(Math.ceil(REQUEST_TIMEOUT_MS / 1000)),
+        "--retry",
+        "2",
+        "--retry-delay",
+        "10",
+        "--user-agent",
+        USER_AGENT,
+        "--header",
+        "accept: text/html,application/xhtml+xml",
+        url,
+      ],
+      {
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: REQUEST_TIMEOUT_MS + 30000,
+      },
+    );
+
+    return {
+      ok: true,
+      status: 200,
+      text: async () => stdout,
+      via: "curl",
+      url,
+    };
+  } catch (error) {
+    const stderr = error.stderr ? ` ${String(error.stderr).trim()}` : "";
+    throw new Error(`curl failed for ${url}: ${error.message}.${stderr}`);
+  }
+}
+
+async function fetchPage() {
+  const errors = [];
+
+  for (const url of SOURCE_URLS) {
+    for (const fetcher of [fetchWithNode, fetchWithCurl]) {
+      try {
+        const response = await fetcher(url);
+        console.log(`Fetched DCCEEW status page via ${response.via}: ${response.url}`);
+        return response;
+      } catch (error) {
+        errors.push(error.message);
+        console.warn(error.message);
+      }
+    }
+  }
+
+  throw new Error(`Could not fetch DCCEEW status page after ${errors.length} attempts.`);
+}
+
 async function main() {
   const records = JSON.parse(await fs.readFile(DATA_PATH, "utf8"));
   const localLatest = latestLocalStockDate(records);
-  const response = await fetchPage(SOURCE_URL);
+  const response = await fetchPage();
 
   if (!response.ok) {
     throw new Error(`DCCEEW page request failed with HTTP ${response.status}`);
