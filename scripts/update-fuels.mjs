@@ -165,6 +165,14 @@ function normalizeNumber(value) {
   return Number(String(value).replace(/,/g, ""));
 }
 
+function includesAllFuelLabels(text) {
+  return Object.values(FUEL_LABELS).every((labels) => labels.some((label) => new RegExp(`\\b${label.replace(/\s+/g, "\\s+")}\\b`, "i").test(text)));
+}
+
+function hasTableLikeSignals(text) {
+  return /(stock|held|volume)/i.test(text) && /(mso|minimum|required)/i.test(text) && /\bdays?\b/i.test(text);
+}
+
 function collectTextCandidates(value, candidates = []) {
   if (typeof value === "string") {
     const compact = value.replace(/\s+/g, " ").trim();
@@ -217,11 +225,17 @@ function parseFuelMetricsFromText(text, msoRequirements) {
     const end = Math.min(normalized.length, labelMatch.index + 240);
     const window = normalized.slice(start, end);
     const numbers = [...window.matchAll(/\b\d{1,4}\b/g)].map((match) => normalizeNumber(match[0]));
-    const msoRequiredML = msoRequirements[fuel] ?? numbers.find((number) => number >= 500 && number <= 3500);
-    const volumeML = numbers.find((number) => number >= 500 && number <= 4000 && number !== msoRequiredML);
-    const daysCover = numbers.find((number) => number >= 10 && number <= 90);
+    const msoRequiredML = msoRequirements[fuel];
+    const daysMatch = window.match(/\b(\d{1,2})\s*days?\b/i);
+    const daysCover = daysMatch ? normalizeNumber(daysMatch[1]) : numbers.find((number) => number >= 10 && number <= 90);
+    const volumeML = numbers.find((number) => {
+      if (number < 500 || number > 4000) return false;
+      if (number === msoRequiredML || number === daysCover) return false;
+      if (number >= 2020 && number <= 2030) return false;
+      return true;
+    });
 
-    if (volumeML && msoRequiredML && daysCover) {
+    if (volumeML && msoRequiredML && daysCover && numbers.includes(msoRequiredML) && /\bdays?\b/i.test(window)) {
       fuels[fuel] = { volumeML, msoRequiredML, daysCover };
     }
   }
@@ -229,13 +243,39 @@ function parseFuelMetricsFromText(text, msoRequirements) {
   return fuels;
 }
 
-function mergeFuelMetrics(...metricsSets) {
-  return metricsSets.reduce((merged, metrics) => {
-    for (const [fuel, values] of Object.entries(metrics)) {
-      if (!merged[fuel]) merged[fuel] = values;
-    }
-    return merged;
-  }, {});
+function suspiciousRoundVolumes(fuels) {
+  return Object.values(fuels).filter((values) => values.volumeML % 100 === 0).length >= 2;
+}
+
+function candidateScore(candidate, fuels) {
+  let score = 0;
+  if (includesAllFuelLabels(candidate)) score += 4;
+  if (hasTableLikeSignals(candidate)) score += 4;
+  score += Object.keys(fuels).length * 2;
+  if (suspiciousRoundVolumes(fuels)) score -= 5;
+  return score;
+}
+
+function chooseScrapedFuelRecord(textCandidates, msoRequirements) {
+  const candidates = [...new Set(textCandidates)]
+    .map((candidate) => {
+      const fuels = parseFuelMetricsFromText(candidate, msoRequirements);
+      return {
+        score: candidateScore(candidate, fuels),
+        complete: completeFuelRecord(fuels),
+        tableLike: includesAllFuelLabels(candidate) && hasTableLikeSignals(candidate),
+        suspiciousRoundVolumes: suspiciousRoundVolumes(fuels),
+        fuels,
+        preview: candidate.slice(0, 500),
+      };
+    })
+    .filter((candidate) => candidate.complete)
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    candidates,
+    best: candidates.find((candidate) => candidate.tableLike && !candidate.suspiciousRoundVolumes) ?? null,
+  };
 }
 
 function completeFuelRecord(fuels) {
@@ -337,11 +377,14 @@ async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
       `${[...new Set(textCandidates)].slice(0, 100).join("\n\n---\n\n")}\n`,
     );
 
-    const fuels = mergeFuelMetrics(...textCandidates.map((candidate) => parseFuelMetricsFromText(candidate, msoRequirements)));
+    const { candidates, best } = chooseScrapedFuelRecord(textCandidates, msoRequirements);
+    await fs.writeFile(new URL("parsed-candidates.json", POWERBI_DEBUG_DIR), `${JSON.stringify(candidates, null, 2)}\n`);
+
+    const fuels = best?.fuels ?? {};
 
     if (!completeFuelRecord(fuels)) {
       console.warn(
-        `Power BI scrape found ${Object.keys(fuels).length} of 3 fuel records. Debug output written to artifacts/powerbi-debug/.`,
+        `Power BI scrape did not find a reliable table-like fuel record. ${candidates.length} complete but rejected candidate(s) were written to artifacts/powerbi-debug/parsed-candidates.json.`,
       );
       return null;
     }
