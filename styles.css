@@ -456,12 +456,12 @@ th {
   text-transform: uppercase;
 }
 
-td:nth-child(7).positive {
+td:nth-child(6).positive {
   color: var(--good);
   font-weight: 800;
 }
 
-td:nth-child(7).negative {
+td:nth-child(6).negative {
   color: var(--warn);
   font-weight: 800;
 }

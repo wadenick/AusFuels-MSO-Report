@@ -473,12 +473,12 @@ function renderTable() {
           <td>${formatDate.format(parseDate(row.stockDate))}</td>
           <td>${row.fuelName}</td>
           <td class="trend-cell">${renderSparkline(row)}</td>
-          <td>${row.price ? `${priceFormat.format(row.price.priceCpl)} c/L` : "—"}</td>
           <td>${numberFormat.format(row.volumeML)}</td>
           <td>${numberFormat.format(row.msoRequiredML)}</td>
           <td class="${row.surplusML >= 0 ? "positive" : "negative"}">${row.surplusML >= 0 ? "+" : ""}${numberFormat.format(row.surplusML)}</td>
           <td>${formatPct(row.coverage)}</td>
           <td>${row.daysCover}</td>
+          <td>${row.price ? `${priceFormat.format(row.price.priceCpl)} c/L` : "—"}</td>
         </tr>
       `,
     )
