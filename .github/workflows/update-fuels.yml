@@ -30,9 +30,9 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Power BI scraper browser
+      - name: Install data updater dependencies
         run: |
-          npm install --no-save playwright@1
+          npm install --no-save playwright@1 xlsx@0.18.5
           npx playwright install --with-deps chromium
 
       - name: Check DCCEEW publication status
@@ -53,7 +53,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Update weekly fuel stocks data
-          file_pattern: data/fuels.json
+          file_pattern: data/fuels.json data/prices.json
 
   deploy:
     needs: update

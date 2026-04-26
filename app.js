@@ -9,6 +9,7 @@ const colors = {
   kerosene: "#c65d2e",
   diesel: "#3f4652",
   days: "#7b8790",
+  price: "#0f766e",
   grid: "#d8e1e7",
   panel: "#f8fafc",
   panelBorder: "#d7e0e7",
@@ -25,12 +26,14 @@ const volumeAxis = {
 
 const chartLayout = {
   panelHeight: 174,
-  panelGap: 94,
+  panelGap: 116,
   top: 44,
-  bottom: 56,
+  bottom: 84,
 };
 
 let records = [];
+let priceRecords = [];
+let priceMeta = null;
 let selectedFuel = "all";
 let showDaysCover = true;
 let chartHitTargets = [];
@@ -42,6 +45,10 @@ const formatDate = new Intl.DateTimeFormat("en-AU", {
 });
 
 const numberFormat = new Intl.NumberFormat("en-AU");
+const priceFormat = new Intl.NumberFormat("en-AU", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 function parseDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -50,6 +57,15 @@ function parseDate(value) {
 
 function formatPct(value) {
   return `${Math.round(value)}%`;
+}
+
+function priceFor(fuel, stockDate) {
+  if (!["gasoline", "diesel"].includes(fuel) || !priceRecords.length) return null;
+
+  const target = parseDate(stockDate);
+  return priceRecords
+    .filter((record) => parseDate(record.date) <= target && record[fuel]?.priceCpl)
+    .sort((a, b) => parseDate(b.date) - parseDate(a.date))[0]?.[fuel] ?? null;
 }
 
 function flatten(data) {
@@ -65,6 +81,7 @@ function flatten(data) {
         volumeML: values.volumeML,
         msoRequiredML: values.msoRequiredML,
         daysCover: values.daysCover,
+        price: priceFor(fuel, week.stockDate),
         surplusML: values.volumeML - values.msoRequiredML,
         coverage: (values.volumeML / values.msoRequiredML) * 100,
       })),
@@ -129,9 +146,11 @@ function renderKpis() {
 }
 
 function renderLegend() {
+  const hasPrices = visibleFuelKeys().some((fuel) => ["gasoline", "diesel"].includes(fuel));
   document.querySelector("#fuel-legend").innerHTML = visibleFuelKeys()
     .map((fuel) => `<span><i class="legend-${fuel}"></i>${fuelLabels[fuel] || fuel}</span>`)
     .join("");
+  document.querySelector("#price-legend").hidden = !hasPrices;
 }
 
 function visibleFuelKeys() {
@@ -149,6 +168,7 @@ function selectedSeries() {
       volumeML: week.fuels[fuel].volumeML,
       msoRequiredML: week.fuels[fuel].msoRequiredML,
       daysCover: week.fuels[fuel].daysCover,
+      price: priceFor(fuel, week.stockDate),
     })),
   }));
 }
@@ -159,7 +179,7 @@ function niceMax(value) {
   return Math.ceil(value / magnitude) * magnitude;
 }
 
-function drawLine(ctx, points, color, dashPattern = []) {
+function drawLine(ctx, points, color, dashPattern = [], width = 3) {
   ctx.save();
   ctx.beginPath();
   points.forEach((point, index) => {
@@ -167,7 +187,7 @@ function drawLine(ctx, points, color, dashPattern = []) {
     else ctx.lineTo(point.x, point.y);
   });
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = width;
   ctx.setLineDash(dashPattern);
   ctx.stroke();
   ctx.restore();
@@ -236,11 +256,18 @@ function drawChart() {
     const cardX = 14;
     const cardY = panelTop - 38;
     const cardW = width - 28;
-    const cardH = panelH + 82;
+    const cardH = panelH + 110;
     const maxDays = niceMax(Math.max(...item.points.map((point) => point.daysCover)) * 1.15);
+    const prices = item.points.map((point) => point.price?.priceCpl).filter(Boolean);
+    const priceMin = prices.length ? Math.min(...prices) : 0;
+    const priceMax = prices.length ? Math.max(...prices) : 1;
+    const priceSpan = Math.max(priceMax - priceMin, 1);
     const yVolume = (value) =>
       panelBottom - ((value - volumeAxis.min) / (volumeAxis.max - volumeAxis.min)) * panelH;
     const yDays = (value) => panelBottom - (value / maxDays) * panelH;
+    const priceBandTop = panelBottom + 42;
+    const priceBandH = 22;
+    const yPrice = (value) => priceBandTop + priceBandH - ((value - priceMin) / priceSpan) * priceBandH;
 
     ctx.save();
     roundedRect(ctx, cardX, cardY, cardW, cardH, 8);
@@ -303,6 +330,7 @@ function drawChart() {
         volumeML: point.volumeML,
         msoRequiredML: point.msoRequiredML,
         daysCover: point.daysCover,
+        price: point.price,
         surplusML: point.volumeML - point.msoRequiredML,
       });
     });
@@ -326,6 +354,19 @@ function drawChart() {
       const label = formatDate.format(parseDate(week.stockDate)).replace(" 2026", "");
       ctx.fillText(label, x(index), panelBottom + 22);
     });
+
+    if (prices.length > 1) {
+      const pricePoints = item.points
+        .map((point, index) => (point.price ? { x: x(index), y: yPrice(point.price.priceCpl) } : null))
+        .filter(Boolean);
+      ctx.save();
+      ctx.fillStyle = colors.muted;
+      ctx.textAlign = "right";
+      ctx.font = "10px Inter, system-ui, sans-serif";
+      ctx.fillText("Sydney TGP", pad.left - 10, priceBandTop + priceBandH / 2);
+      drawLine(ctx, pricePoints, colors.price, [1, 6], 2);
+      ctx.restore();
+    }
   });
 }
 
@@ -358,12 +399,16 @@ function renderChartTooltip(event) {
   }
 
   const delta = `${nearest.surplusML >= 0 ? "+" : ""}${numberFormat.format(nearest.surplusML)} ML`;
+  const priceLine = nearest.price
+    ? `<span>${nearest.price.label}: ${priceFormat.format(nearest.price.priceCpl)} c/L</span>`
+    : "";
   tooltip.innerHTML = `
     <strong style="color: ${nearest.color}">${nearest.fuelName} · ${formatDate.format(parseDate(nearest.stockDate))}</strong>
     <span>Stock: ${numberFormat.format(nearest.volumeML)} ML</span>
     <span>MSO: ${numberFormat.format(nearest.msoRequiredML)} ML</span>
     <span>Surplus: ${delta}</span>
     <span>Days cover: ${nearest.daysCover}</span>
+    ${priceLine}
   `;
   tooltip.style.display = "block";
 
@@ -428,6 +473,7 @@ function renderTable() {
           <td>${formatDate.format(parseDate(row.stockDate))}</td>
           <td>${row.fuelName}</td>
           <td class="trend-cell">${renderSparkline(row)}</td>
+          <td>${row.price ? `${priceFormat.format(row.price.priceCpl)} c/L` : "—"}</td>
           <td>${numberFormat.format(row.volumeML)}</td>
           <td>${numberFormat.format(row.msoRequiredML)}</td>
           <td class="${row.surplusML >= 0 ? "positive" : "negative"}">${row.surplusML >= 0 ? "+" : ""}${numberFormat.format(row.surplusML)}</td>
@@ -441,7 +487,10 @@ function renderTable() {
 
 function renderSubtitle() {
   const label = selectedFuel === "all" ? "separate mini chart per fuel" : fuelLabels[selectedFuel].toLowerCase();
-  document.querySelector("#chart-subtitle").textContent = `Stock and MSO levels by stock date for ${label}`;
+  const priceContext = visibleFuelKeys().some((fuel) => ["gasoline", "diesel"].includes(fuel))
+    ? ", with Sydney TGP overlay"
+    : "";
+  document.querySelector("#chart-subtitle").textContent = `Stock and MSO levels by stock date for ${label}${priceContext}`;
   document.querySelector("#show-days-cover").checked = showDaysCover;
 }
 
@@ -459,6 +508,11 @@ function render() {
 async function init() {
   const response = await fetch("data/fuels.json");
   if (!response.ok) throw new Error(`Could not load fuel data: ${response.status}`);
+  const priceResponse = await fetch("data/prices.json").catch(() => null);
+  if (priceResponse?.ok) {
+    priceMeta = await priceResponse.json();
+    priceRecords = (priceMeta.prices ?? []).sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  }
   records = (await response.json()).sort((a, b) => parseDate(a.stockDate) - parseDate(b.stockDate));
   renderHeader();
   renderTabs();

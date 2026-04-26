@@ -290,6 +290,10 @@ button[aria-selected="true"] {
   background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 8px);
 }
 
+.legend-price {
+  background: repeating-linear-gradient(90deg, #0f766e 0 2px, transparent 2px 7px);
+}
+
 .canvas-wrap {
   position: relative;
   width: 100%;
@@ -386,7 +390,7 @@ canvas {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 900px;
+  min-width: 1000px;
 }
 
 th,
@@ -416,12 +420,12 @@ th {
   text-transform: uppercase;
 }
 
-td:nth-child(6).positive {
+td:nth-child(7).positive {
   color: var(--good);
   font-weight: 800;
 }
 
-td:nth-child(6).negative {
+td:nth-child(7).negative {
   color: var(--warn);
   font-weight: 800;
 }

@@ -8,7 +8,10 @@ const SOURCE_URLS = [
   "https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics",
   "https://dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics",
 ];
+const AIP_TGP_URL = "https://www.aip.com.au/pricing/terminal-gate-prices";
+const AIP_HISTORICAL_TGP_URL = "https://www.aip.com.au/historical-ulp-and-diesel-tgp-data";
 const DATA_PATH = new URL("../data/fuels.json", import.meta.url);
+const PRICE_DATA_PATH = new URL("../data/prices.json", import.meta.url);
 const POWERBI_DEBUG_DIR = new URL("../artifacts/powerbi-debug/", import.meta.url);
 const POWERBI_REPORT_URL = process.env.POWERBI_REPORT_URL?.trim() || null;
 const SKIP_DCCEEW_STATUS = process.env.SKIP_DCCEEW_STATUS === "1";
@@ -145,6 +148,15 @@ function sydneyDateParts(referenceDate = new Date()) {
 
 function datePartsToIso({ year, month, day }) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function dateToIso(value) {
+  if (value instanceof Date) return datePartsToIso(sydneyDateParts(value));
+  if (typeof value === "number") {
+    const excelEpoch = Date.UTC(1899, 11, 30);
+    return new Date(excelEpoch + value * 86400000).toISOString().slice(0, 10);
+  }
+  return null;
 }
 
 function inferLatestTuesdayInSydney(referenceDate = new Date()) {
@@ -601,6 +613,53 @@ async function fetchWithCurl(url) {
   }
 }
 
+async function fetchBinaryWithNode(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*",
+        "user-agent": USER_AGENT,
+      },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchBinaryWithCurl(url) {
+  const { stdout } = await execFileAsync(
+    "curl",
+    [
+      "--fail",
+      "--http1.1",
+      "--location",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      String(Math.ceil(REQUEST_TIMEOUT_MS / 1000)),
+      "--retry",
+      "1",
+      "--retry-delay",
+      "3",
+      "--user-agent",
+      USER_AGENT,
+      url,
+    ],
+    {
+      encoding: "buffer",
+      maxBuffer: 60 * 1024 * 1024,
+      timeout: REQUEST_TIMEOUT_MS + 30000,
+    },
+  );
+  return stdout;
+}
+
 async function fetchPage() {
   const errors = [];
 
@@ -618,6 +677,117 @@ async function fetchPage() {
   }
 
   throw new Error(`Could not fetch DCCEEW status page after ${errors.length} attempts.`);
+}
+
+async function fetchAipPage() {
+  const urls = [AIP_TGP_URL, AIP_HISTORICAL_TGP_URL];
+
+  for (const url of urls) {
+    for (const fetcher of [fetchWithNode, fetchWithCurl]) {
+      try {
+        const response = await fetcher(url);
+        console.log(`Fetched AIP TGP page via ${response.via ?? "node-fetch"}: ${url}`);
+        const html = await response.text();
+        if (extractAipWorkbookUrl(html)) return html;
+      } catch (error) {
+        console.warn(`AIP TGP page fetch failed: ${error.message}`);
+      }
+    }
+  }
+
+  throw new Error("Could not fetch AIP Terminal Gate Prices page.");
+}
+
+function extractAipWorkbookUrl(html) {
+  const decoded = decodeHtml(html);
+  const workbookPath = decoded.match(/href="([^"]*AIP_TGP_Data_[^"]+\.xlsx)"/i)?.[1];
+  if (!workbookPath) return null;
+  return new URL(workbookPath, AIP_TGP_URL).toString();
+}
+
+async function fetchWorkbook(url) {
+  for (const fetcher of [fetchBinaryWithNode, fetchBinaryWithCurl]) {
+    try {
+      return await fetcher(url);
+    } catch (error) {
+      console.warn(`AIP workbook fetch failed: ${error.message}`);
+    }
+  }
+
+  throw new Error("Could not fetch AIP Terminal Gate Prices workbook.");
+}
+
+function parseSydneyPriceSheet(sheet, xlsx) {
+  const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, raw: true });
+  const header = rows[0] ?? [];
+  const dateIndex = 0;
+  const sydneyIndex = header.findIndex((cell) => String(cell).trim().toLowerCase() === "sydney");
+
+  if (sydneyIndex < 0) throw new Error("AIP workbook did not include a Sydney column.");
+
+  return new Map(
+    rows
+      .slice(1)
+      .map((row) => [dateToIso(row[dateIndex]), Number(row[sydneyIndex])])
+      .filter(([date, price]) => date && Number.isFinite(price)),
+  );
+}
+
+async function buildSydneyPriceData(stockRecords) {
+  let xlsx;
+
+  try {
+    xlsx = await import("xlsx");
+  } catch (error) {
+    console.warn(`AIP price update skipped because xlsx is not installed: ${error.message}`);
+    return null;
+  }
+
+  const html = await fetchAipPage();
+  const workbookUrl = extractAipWorkbookUrl(html);
+  if (!workbookUrl) throw new Error("Could not find AIP_TGP_Data workbook link on AIP page.");
+
+  const workbookBuffer = await fetchWorkbook(workbookUrl);
+  const workbook = xlsx.read(workbookBuffer, { type: "buffer", cellDates: true });
+  const petrol = parseSydneyPriceSheet(workbook.Sheets["Petrol TGP"], xlsx);
+  const diesel = parseSydneyPriceSheet(workbook.Sheets["Diesel TGP"], xlsx);
+  const stockDates = [...new Set(stockRecords.map((record) => record.stockDate))].sort();
+  const prices = stockDates.map((date) => ({
+    date,
+    gasoline: petrol.has(date) ? { priceCpl: petrol.get(date), label: "Sydney ULP TGP" } : null,
+    diesel: diesel.has(date) ? { priceCpl: diesel.get(date), label: "Sydney diesel TGP" } : null,
+  }));
+
+  return {
+    source: "Australian Institute of Petroleum Terminal Gate Prices",
+    sourceUrl: AIP_TGP_URL,
+    workbookUrl,
+    location: "Sydney",
+    unit: "centsPerLitre",
+    updatedAt: todayInSydney(),
+    prices,
+  };
+}
+
+async function updatePriceData(stockRecords) {
+  try {
+    const priceData = await buildSydneyPriceData(stockRecords);
+    if (!priceData) return false;
+
+    const next = `${JSON.stringify(priceData, null, 2)}\n`;
+    const current = await fs.readFile(PRICE_DATA_PATH, "utf8").catch(() => "");
+    if (current === next) {
+      console.log("No data delta found for data/prices.json.");
+      return false;
+    }
+
+    await fs.writeFile(PRICE_DATA_PATH, next);
+    console.log(`Updated data/prices.json with ${priceData.prices.length} Sydney price observations.`);
+    return true;
+  } catch (error) {
+    console.warn(`AIP price update skipped: ${error.message}`);
+    return false;
+  }
 }
 
 async function main() {
@@ -676,7 +846,9 @@ async function main() {
   }
 
   const scrapedRecord = await scrapePowerBiRecord(powerBiUrl, status, msoRequirements);
-  await writeIfNewRecord(records, scrapedRecord);
+  const wroteFuelData = await writeIfNewRecord(records, scrapedRecord);
+  const nextRecords = wroteFuelData ? JSON.parse(await fs.readFile(DATA_PATH, "utf8")) : records;
+  await updatePriceData(nextRecords);
 }
 
 main().catch((error) => {
