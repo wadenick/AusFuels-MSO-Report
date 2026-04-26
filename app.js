@@ -363,7 +363,7 @@ function drawChart() {
       ctx.fillStyle = colors.muted;
       ctx.textAlign = "left";
       ctx.font = "10px Inter, system-ui, sans-serif";
-      ctx.fillText("Sydney TGP", pad.left, priceBandTop + priceBandH / 2);
+      ctx.fillText("Sydney TGP", pad.left - 34, priceBandTop + priceBandH / 2);
       drawLine(ctx, pricePoints, colors.price, [1, 6], 2);
       ctx.restore();
     }
