@@ -30,8 +30,21 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install Power BI scraper browser
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+
       - name: Check DCCEEW publication status
         run: node scripts/update-fuels.mjs
+
+      - name: Upload Power BI scrape diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerbi-debug
+          path: artifacts/powerbi-debug/
+          if-no-files-found: ignore
 
       - name: Commit updated data
         uses: stefanzweifel/git-auto-commit-action@v5
