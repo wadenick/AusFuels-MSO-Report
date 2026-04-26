@@ -123,6 +123,15 @@ function parseDccEeWDate(text, referenceDate = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+function parseSlashDate(text) {
+  const match = text?.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (!match) return null;
+
+  const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
+  const date = new Date(Date.UTC(year, Number(match[2]) - 1, Number(match[1])));
+  return date.toISOString().slice(0, 10);
+}
+
 function sydneyDateParts(referenceDate = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Australia/Sydney",
@@ -243,6 +252,81 @@ function parseFuelMetricsFromText(text, msoRequirements) {
   return fuels;
 }
 
+function splitStockDigits(value) {
+  const candidates = [];
+
+  for (let gasolineLength = 3; gasolineLength <= 4; gasolineLength += 1) {
+    for (let keroseneLength = 3; keroseneLength <= 4; keroseneLength += 1) {
+      const dieselLength = value.length - gasolineLength - keroseneLength;
+      if (dieselLength < 3 || dieselLength > 4) continue;
+
+      const gasoline = Number(value.slice(0, gasolineLength));
+      const kerosene = Number(value.slice(gasolineLength, gasolineLength + keroseneLength));
+      const diesel = Number(value.slice(gasolineLength + keroseneLength));
+
+      if (gasoline >= 500 && gasoline <= 3000 && kerosene >= 300 && kerosene <= 1500 && diesel >= 1500 && diesel <= 4000) {
+        candidates.push({ gasoline, kerosene, diesel });
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => {
+    const aScore = Math.abs(a.gasoline - 1800) + Math.abs(a.kerosene - 850) + Math.abs(a.diesel - 2900);
+    const bScore = Math.abs(b.gasoline - 1800) + Math.abs(b.kerosene - 850) + Math.abs(b.diesel - 2900);
+    return aScore - bScore;
+  })[0] ?? null;
+}
+
+function parseRenderedSummaryText(text, msoRequirements) {
+  const normalized = text.replace(/Press Enter to explore data/g, "|").replace(/\s+/g, " ");
+  const stockDate = parseSlashDate(normalized.match(/Stocks held on\s+(\d{1,2}\/\d{1,2}\/\d{2,4})/i)?.[1]);
+  const numberRun = normalized.match(/Automotive\s*gasoline.*?Aviation\s*kerosene.*?Automotive\s*diesel(\d{18,40})\|\s*Stocks held \(ML\)/i)?.[1];
+
+  if (!stockDate || !numberRun) return null;
+
+  const baseMsoRun = `${msoRequirements.gasoline}${msoRequirements.kerosene}${msoRequirements.diesel}`;
+  const baseMsoIndex = numberRun.indexOf(baseMsoRun);
+  if (baseMsoIndex <= 0) return null;
+
+  const volumes = splitStockDigits(numberRun.slice(0, baseMsoIndex));
+  if (!volumes) return null;
+
+  const days = {
+    kerosene: Number(normalized.match(/Kerosene\|\s*Days\s*(\d{1,2})/i)?.[1]),
+    diesel: Number(normalized.match(/Diesel\|\s*Days\s*(\d{1,2})/i)?.[1]),
+    gasoline: Number(normalized.match(/Gasoline\|\s*Days\s*(\d{1,2})/i)?.[1]),
+  };
+
+  if (!days.gasoline || !days.kerosene || !days.diesel) return null;
+
+  return {
+    stockDate,
+    fuels: {
+      gasoline: {
+        volumeML: volumes.gasoline,
+        msoRequiredML: msoRequirements.gasoline,
+        daysCover: days.gasoline,
+      },
+      kerosene: {
+        volumeML: volumes.kerosene,
+        msoRequiredML: msoRequirements.kerosene,
+        daysCover: days.kerosene,
+      },
+      diesel: {
+        volumeML: volumes.diesel,
+        msoRequiredML: msoRequirements.diesel,
+        daysCover: days.diesel,
+      },
+    },
+  };
+}
+
+function chooseRenderedSummaryRecord(textCandidates, msoRequirements) {
+  return [...new Set(textCandidates)]
+    .map((candidate) => parseRenderedSummaryText(candidate, msoRequirements))
+    .find((candidate) => candidate && completeFuelRecord(candidate.fuels)) ?? null;
+}
+
 function suspiciousRoundVolumes(fuels) {
   return Object.values(fuels).filter((values) => values.volumeML % 100 === 0).length >= 2;
 }
@@ -292,7 +376,7 @@ function latestLocalRequirements(records) {
   return Object.fromEntries(Object.entries(latest.fuels).map(([fuel, values]) => [fuel, values.msoRequiredML]));
 }
 
-function resolveRecordDates(status, textCandidates) {
+function resolveRecordDates(status, textCandidates, renderedStockDate = null) {
   const statusStockDate = parseDccEeWDate(status.latestStockHeldText);
   const statusPublishedDate = parseDccEeWDate(status.lastUpdatedText);
 
@@ -305,7 +389,7 @@ function resolveRecordDates(status, textCandidates) {
 
   const candidateDates = findDatesInCandidates(textCandidates);
   const inferredStockDate = inferLatestTuesdayInSydney();
-  const stockDate = candidateDates.find((date) => date === inferredStockDate) ?? candidateDates.at(-1) ?? inferredStockDate;
+  const stockDate = renderedStockDate ?? candidateDates.find((date) => date === inferredStockDate) ?? candidateDates.at(-1) ?? inferredStockDate;
 
   return {
     stockDate,
@@ -367,8 +451,11 @@ async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
     await page.waitForLoadState("networkidle", { timeout: POWERBI_TIMEOUT_MS }).catch(() => {});
     await page.waitForTimeout(15000);
 
-    const bodyText = await page.locator("body").textContent({ timeout: 10000 }).catch(() => "");
+    const body = page.locator("body");
+    const bodyText = await body.textContent({ timeout: 10000 }).catch(() => "");
+    const bodyInnerText = await body.innerText({ timeout: 10000 }).catch(() => "");
     if (bodyText) textCandidates.unshift(bodyText);
+    if (bodyInnerText) textCandidates.unshift(bodyInnerText);
 
     await fs.mkdir(POWERBI_DEBUG_DIR, { recursive: true });
     await fs.writeFile(new URL("response-summaries.json", POWERBI_DEBUG_DIR), `${JSON.stringify(responseSummaries, null, 2)}\n`);
@@ -377,10 +464,11 @@ async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
       `${[...new Set(textCandidates)].slice(0, 100).join("\n\n---\n\n")}\n`,
     );
 
+    const renderedSummary = chooseRenderedSummaryRecord(textCandidates, msoRequirements);
     const { candidates, best } = chooseScrapedFuelRecord(textCandidates, msoRequirements);
     await fs.writeFile(new URL("parsed-candidates.json", POWERBI_DEBUG_DIR), `${JSON.stringify(candidates, null, 2)}\n`);
 
-    const fuels = best?.fuels ?? {};
+    const fuels = renderedSummary?.fuels ?? best?.fuels ?? {};
 
     if (!completeFuelRecord(fuels)) {
       console.warn(
@@ -389,7 +477,7 @@ async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
       return null;
     }
 
-    const { stockDate, publishedDate } = resolveRecordDates(status, textCandidates);
+    const { stockDate, publishedDate } = resolveRecordDates(status, textCandidates, renderedSummary?.stockDate);
 
     if (!stockDate || !publishedDate) {
       console.warn("Power BI scrape found fuel values, but could not resolve the stock/published dates.");
