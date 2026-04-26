@@ -11,6 +11,7 @@ const SOURCE_URLS = [
 const DATA_PATH = new URL("../data/fuels.json", import.meta.url);
 const POWERBI_DEBUG_DIR = new URL("../artifacts/powerbi-debug/", import.meta.url);
 const POWERBI_REPORT_URL = process.env.POWERBI_REPORT_URL?.trim() || null;
+const SKIP_DCCEEW_STATUS = process.env.SKIP_DCCEEW_STATUS === "1";
 const REQUEST_TIMEOUT_MS = 45000;
 const POWERBI_TIMEOUT_MS = 90000;
 const USER_AGENT = "AusFuels-MSO-Report data updater (+https://github.com/wadenick/AusFuels-MSO-Report)";
@@ -122,6 +123,44 @@ function parseDccEeWDate(text, referenceDate = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+function sydneyDateParts(referenceDate = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(referenceDate);
+
+  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+}
+
+function datePartsToIso({ year, month, day }) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function inferLatestTuesdayInSydney(referenceDate = new Date()) {
+  const parts = sydneyDateParts(referenceDate);
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const dayOfWeek = date.getUTCDay();
+  const daysSinceTuesday = dayOfWeek >= 2 ? dayOfWeek - 2 : dayOfWeek + 5;
+  date.setUTCDate(date.getUTCDate() - daysSinceTuesday);
+  return date.toISOString().slice(0, 10);
+}
+
+function todayInSydney(referenceDate = new Date()) {
+  return datePartsToIso(sydneyDateParts(referenceDate));
+}
+
+function findDatesInCandidates(candidates) {
+  const dateTexts = [];
+
+  for (const candidate of candidates) {
+    dateTexts.push(...candidate.matchAll(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?/gi));
+  }
+
+  return [...new Set(dateTexts.map((match) => parseDccEeWDate(match[0])).filter(Boolean))].sort();
+}
+
 function normalizeNumber(value) {
   return Number(String(value).replace(/,/g, ""));
 }
@@ -213,6 +252,27 @@ function latestLocalRequirements(records) {
   return Object.fromEntries(Object.entries(latest.fuels).map(([fuel, values]) => [fuel, values.msoRequiredML]));
 }
 
+function resolveRecordDates(status, textCandidates) {
+  const statusStockDate = parseDccEeWDate(status.latestStockHeldText);
+  const statusPublishedDate = parseDccEeWDate(status.lastUpdatedText);
+
+  if (statusStockDate && statusPublishedDate) {
+    return {
+      stockDate: statusStockDate,
+      publishedDate: statusPublishedDate,
+    };
+  }
+
+  const candidateDates = findDatesInCandidates(textCandidates);
+  const inferredStockDate = inferLatestTuesdayInSydney();
+  const stockDate = candidateDates.find((date) => date === inferredStockDate) ?? candidateDates.at(-1) ?? inferredStockDate;
+
+  return {
+    stockDate,
+    publishedDate: statusPublishedDate ?? todayInSydney(),
+  };
+}
+
 async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
   let chromium;
 
@@ -286,11 +346,10 @@ async function scrapePowerBiRecord(powerBiUrl, status, msoRequirements) {
       return null;
     }
 
-    const stockDate = parseDccEeWDate(status.latestStockHeldText);
-    const publishedDate = parseDccEeWDate(status.lastUpdatedText);
+    const { stockDate, publishedDate } = resolveRecordDates(status, textCandidates);
 
     if (!stockDate || !publishedDate) {
-      console.warn("Power BI scrape found fuel values, but could not parse the DCCEEW stock/published dates.");
+      console.warn("Power BI scrape found fuel values, but could not resolve the stock/published dates.");
       return null;
     }
 
@@ -309,6 +368,8 @@ async function writeIfNewRecord(records, nextRecord) {
   if (!nextRecord) return false;
 
   const existingIndex = records.findIndex((record) => record.stockDate === nextRecord.stockDate);
+  const latestRecord = records.toSorted((a, b) => parseDate(a.stockDate) - parseDate(b.stockDate)).at(-1);
+
   if (existingIndex >= 0) {
     const existing = JSON.stringify(records[existingIndex]);
     const incoming = JSON.stringify(nextRecord);
@@ -320,6 +381,18 @@ async function writeIfNewRecord(records, nextRecord) {
 
     records[existingIndex] = nextRecord;
   } else {
+    if (latestRecord && parseDate(nextRecord.stockDate) > parseDate(latestRecord.stockDate)) {
+      const latestFuels = JSON.stringify(latestRecord.fuels);
+      const incomingFuels = JSON.stringify(nextRecord.fuels);
+
+      if (latestFuels === incomingFuels) {
+        console.warn(
+          `Scraped fuel values match the latest local record exactly, so ${nextRecord.stockDate} was not added as a new inferred week.`,
+        );
+        return false;
+      }
+    }
+
     records.push(nextRecord);
   }
 
@@ -427,25 +500,29 @@ async function main() {
   let powerBiUrl = POWERBI_REPORT_URL;
   let msoRequirements = latestLocalRequirements(records);
 
-  try {
-    const response = await fetchPage();
+  if (SKIP_DCCEEW_STATUS) {
+    console.log("Skipping DCCEEW status page fetch because SKIP_DCCEEW_STATUS=1.");
+  } else {
+    try {
+      const response = await fetchPage();
 
-    if (!response.ok) {
-      throw new Error(`DCCEEW page request failed with HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`DCCEEW page request failed with HTTP ${response.status}`);
+      }
+
+      const html = await response.text();
+      status = extractPublishedStatus(html);
+      powerBiUrl = extractPowerBiUrl(html) ?? POWERBI_REPORT_URL;
+      msoRequirements = {
+        ...msoRequirements,
+        ...extractMsoRequirements(html),
+      };
+    } catch (error) {
+      if (!POWERBI_REPORT_URL) throw error;
+
+      console.warn(error.message);
+      console.warn("Falling back to POWERBI_REPORT_URL because the DCCEEW status page could not be fetched.");
     }
-
-    const html = await response.text();
-    status = extractPublishedStatus(html);
-    powerBiUrl = extractPowerBiUrl(html) ?? POWERBI_REPORT_URL;
-    msoRequirements = {
-      ...msoRequirements,
-      ...extractMsoRequirements(html),
-    };
-  } catch (error) {
-    if (!POWERBI_REPORT_URL) throw error;
-
-    console.warn(error.message);
-    console.warn("Falling back to POWERBI_REPORT_URL because the DCCEEW status page could not be fetched.");
   }
 
   const decodedPowerBi = powerBiUrl ? decodePowerBiViewParameter(powerBiUrl) : null;
