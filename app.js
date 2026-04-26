@@ -376,6 +376,43 @@ function renderChartTooltip(event) {
   canvas.style.cursor = "pointer";
 }
 
+function sparklinePath(points) {
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
+}
+
+function renderSparkline(row) {
+  const width = 124;
+  const height = 34;
+  const pad = { x: 5, y: 5 };
+  const weeks = records.map((week) => ({
+    stockDate: week.stockDate,
+    volumeML: week.fuels[row.fuel].volumeML,
+    msoRequiredML: week.fuels[row.fuel].msoRequiredML,
+  }));
+  const values = weeks.flatMap((week) => [week.volumeML, week.msoRequiredML]);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(max - min, 1);
+  const x = (index) => pad.x + (weeks.length === 1 ? (width - pad.x * 2) / 2 : (index / (weeks.length - 1)) * (width - pad.x * 2));
+  const y = (value) => height - pad.y - ((value - min) / span) * (height - pad.y * 2);
+  const stockPoints = weeks.map((week, index) => ({ x: x(index), y: y(week.volumeML) }));
+  const msoPoints = weeks.map((week, index) => ({ x: x(index), y: y(week.msoRequiredML) }));
+  const currentIndex = weeks.findIndex((week) => week.stockDate === row.stockDate);
+  const currentPoint = stockPoints[currentIndex] ?? stockPoints.at(-1);
+  const color = colors[row.fuel];
+  const label = `${row.fuelName} stock trend, current row ${numberFormat.format(row.volumeML)} ML`;
+
+  return `
+    <svg class="sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="${label}">
+      <path class="sparkline-mso" d="${sparklinePath(msoPoints)}"></path>
+      <path class="sparkline-stock" style="stroke: ${color}" d="${sparklinePath(stockPoints)}"></path>
+      <circle class="sparkline-point" style="fill: ${color}" cx="${currentPoint.x.toFixed(1)}" cy="${currentPoint.y.toFixed(1)}" r="3"></circle>
+    </svg>
+  `;
+}
+
 function renderTable() {
   const rows = flatten(records)
     .filter((row) => selectedFuel === "all" || row.fuel === selectedFuel)
@@ -387,6 +424,7 @@ function renderTable() {
         <tr>
           <td>${formatDate.format(parseDate(row.stockDate))}</td>
           <td>${row.fuelName}</td>
+          <td class="trend-cell">${renderSparkline(row)}</td>
           <td>${numberFormat.format(row.volumeML)}</td>
           <td>${numberFormat.format(row.msoRequiredML)}</td>
           <td class="${row.surplusML >= 0 ? "positive" : "negative"}">${row.surplusML >= 0 ? "+" : ""}${numberFormat.format(row.surplusML)}</td>
