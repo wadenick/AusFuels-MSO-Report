@@ -19,16 +19,28 @@ const colors = {
 };
 
 const volumeAxis = {
-  min: 500,
-  max: 3000,
-  ticks: [500, 1500, 2500, 3000],
+  gasoline: {
+    min: 500,
+    max: 3000,
+    ticks: [500, 1500, 2500, 3000],
+  },
+  kerosene: {
+    min: 0,
+    max: 2500,
+    ticks: [0, 1000, 2000, 2500],
+  },
+  diesel: {
+    min: 1000,
+    max: 3500,
+    ticks: [1000, 2000, 3000, 3500],
+  },
 };
 
 const chartLayout = {
   panelHeight: 174,
   panelGap: 136,
   top: 44,
-  bottom: 104,
+  bottom: 136,
 };
 
 let records = [];
@@ -257,13 +269,14 @@ function drawChart() {
     const cardY = panelTop - 38;
     const cardW = width - 28;
     const cardH = panelH + 130;
+    const axis = volumeAxis[item.fuel] ?? volumeAxis.gasoline;
     const maxDays = niceMax(Math.max(...item.points.map((point) => point.daysCover)) * 1.15);
     const prices = item.points.map((point) => point.price?.priceCpl).filter(Boolean);
     const priceMin = prices.length ? Math.min(...prices) : 0;
     const priceMax = prices.length ? Math.max(...prices) : 1;
     const priceSpan = Math.max(priceMax - priceMin, 1);
     const yVolume = (value) =>
-      panelBottom - ((value - volumeAxis.min) / (volumeAxis.max - volumeAxis.min)) * panelH;
+      panelBottom - ((value - axis.min) / (axis.max - axis.min)) * panelH;
     const yDays = (value) => panelBottom - (value / maxDays) * panelH;
     const priceBandTop = panelBottom + 44;
     const priceBandH = 44;
@@ -294,7 +307,7 @@ function drawChart() {
     }
 
     ctx.textBaseline = "middle";
-    volumeAxis.ticks.forEach((value) => {
+    axis.ticks.forEach((value) => {
       const y = yVolume(value);
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
