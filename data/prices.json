@@ -1,10 +1,10 @@
 {
   "source": "Australian Institute of Petroleum Terminal Gate Prices",
   "sourceUrl": "https://www.aip.com.au/pricing/terminal-gate-prices",
-  "workbookUrl": "https://www.aip.com.au/sites/default/files/download-files/2026-05/AIP_TGP_Data_15-May-2026.xlsx",
+  "workbookUrl": "https://www.aip.com.au/sites/default/files/download-files/2026-05/AIP_TGP_Data_22-May-2026.xlsx",
   "location": "Sydney",
   "unit": "centsPerLitre",
-  "updatedAt": "2026-05-17",
+  "updatedAt": "2026-05-23",
   "prices": [
     {
       "date": "2026-03-17",
@@ -102,6 +102,17 @@
       },
       "diesel": {
         "priceCpl": 208.6,
+        "label": "Sydney diesel TGP"
+      }
+    },
+    {
+      "date": "2026-05-19",
+      "gasoline": {
+        "priceCpl": 175.5,
+        "label": "Sydney ULP TGP"
+      },
+      "diesel": {
+        "priceCpl": 207,
         "label": "Sydney diesel TGP"
       }
     }
