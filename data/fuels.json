@@ -284,5 +284,27 @@
         "daysCover": 39
       }
     }
+  },
+  {
+    "stockDate": "2026-06-16",
+    "publishedDate": "2026-06-20",
+    "source": "DCCEEW MSO statistics Power BI viewer",
+    "fuels": {
+      "gasoline": {
+        "volumeML": 1913,
+        "msoRequiredML": 1067,
+        "daysCover": 44
+      },
+      "kerosene": {
+        "volumeML": 873,
+        "msoRequiredML": 663,
+        "daysCover": 32
+      },
+      "diesel": {
+        "volumeML": 3590,
+        "msoRequiredML": 2742,
+        "daysCover": 39
+      }
+    }
   }
 ]
