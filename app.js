@@ -38,13 +38,13 @@ const volumeAxis = {
 
 const chartLayout = {
   panelHeight: 174,
-  pricePanelGap: 196,
+  pricePanelGap: 206,
   standardPanelGap: 88,
   top: 44,
-  priceBottom: 176,
+  priceBottom: 186,
   standardBottom: 68,
   priceBandHeight: 84,
-  dieselBottomPadding: 10,
+  dieselBottomPadding: 8,
 };
 
 let records = [];
@@ -354,7 +354,7 @@ function drawChart() {
     const yVolume = (value) =>
       panelBottom - ((value - axis.min) / (axis.max - axis.min)) * panelH;
     const yDays = (value) => panelBottom - (value / maxDays) * panelH;
-    const priceBandTop = panelBottom + 62;
+    const priceBandTop = panelBottom + 72;
     const priceBandH = chartLayout.priceBandHeight;
     const yPrice = (value) =>
       priceBandTop + priceBandH - ((value - tgpAxis.min) / (tgpAxis.max - tgpAxis.min)) * priceBandH;
