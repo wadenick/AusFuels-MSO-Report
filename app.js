@@ -38,9 +38,12 @@ const volumeAxis = {
 
 const chartLayout = {
   panelHeight: 174,
-  panelGap: 136,
+  pricePanelGap: 196,
+  standardPanelGap: 88,
   top: 44,
-  bottom: 136,
+  priceBottom: 176,
+  standardBottom: 68,
+  priceBandHeight: 84,
 };
 
 let records = [];
@@ -60,6 +63,10 @@ const numberFormat = new Intl.NumberFormat("en-AU");
 const priceFormat = new Intl.NumberFormat("en-AU", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
+});
+
+const monthFormat = new Intl.DateTimeFormat("en-AU", {
+  month: "short",
 });
 
 function parseDate(value) {
@@ -191,6 +198,54 @@ function niceMax(value) {
   return Math.ceil(value / magnitude) * magnitude;
 }
 
+function monthlyTickIndexes() {
+  const ticksByMonth = new Map();
+
+  records.forEach((week, index) => {
+    const date = parseDate(week.stockDate);
+    const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+    const distanceFromMidMonth = Math.abs(date.getDate() - 15);
+    const current = ticksByMonth.get(monthKey);
+
+    if (!current || distanceFromMidMonth < current.distanceFromMidMonth) {
+      ticksByMonth.set(monthKey, { index, distanceFromMidMonth });
+    }
+  });
+
+  return [...ticksByMonth.values()].map(({ index }) => index);
+}
+
+function niceStep(value) {
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+  return multiplier * magnitude;
+}
+
+function priceAxis(values, minimumStep = 0, maximumTick = Infinity) {
+  const dataMin = Math.min(...values);
+  const dataMax = Math.max(...values);
+  const step = Math.max(niceStep(Math.max(dataMax - dataMin, 1) / 4), minimumStep);
+  const minDomainStep = minimumStep ? minimumStep / 5 : step;
+  const maxDomainStep = Number.isFinite(maximumTick) ? step / 5 : minDomainStep;
+  const min = Math.floor(dataMin / minDomainStep) * minDomainStep;
+  const max = Math.max(
+    Math.ceil(dataMax / maxDomainStep) * maxDomainStep,
+    Number.isFinite(maximumTick) ? maximumTick : -Infinity,
+  );
+  const ticks = [];
+
+  for (
+    let value = Math.ceil(min / step) * step;
+    value <= Math.min(max, maximumTick) + step / 2;
+    value += step
+  ) {
+    ticks.push(value);
+  }
+
+  return { min, max: Math.max(max, min + step), ticks };
+}
+
 function drawLine(ctx, points, color, dashPattern = [], width = 3) {
   ctx.save();
   ctx.beginPath();
@@ -233,11 +288,20 @@ function drawChart() {
   const canvas = document.querySelector("#volume-chart");
   chartHitTargets = [];
   const series = selectedSeries();
+  let nextPanelTop = chartLayout.top;
+  const panelLayouts = series.map((item) => {
+    const hasPriceBand = item.points.filter((point) => point.price).length > 1;
+    const layout = { top: nextPanelTop, hasPriceBand };
+    nextPanelTop +=
+      chartLayout.panelHeight +
+      (hasPriceBand ? chartLayout.pricePanelGap : chartLayout.standardPanelGap);
+    return layout;
+  });
+  const lastPanel = panelLayouts.at(-1);
   const wrapHeight =
-    chartLayout.top +
-    chartLayout.bottom +
-    chartLayout.panelHeight * series.length +
-    chartLayout.panelGap * Math.max(series.length - 1, 0);
+    lastPanel.top +
+    chartLayout.panelHeight +
+    (lastPanel.hasPriceBand ? chartLayout.priceBottom : chartLayout.standardBottom);
   canvas.parentElement.style.height = `${wrapHeight}px`;
 
   const ctx = canvas.getContext("2d");
@@ -248,11 +312,11 @@ function drawChart() {
   ctx.scale(ratio, ratio);
 
   const width = rect.width;
-  const pad = { top: chartLayout.top, right: showDaysCover ? 56 : 22, bottom: chartLayout.bottom, left: 72 };
-  const panelGap = chartLayout.panelGap;
+  const pad = { right: showDaysCover ? 56 : 22, left: 72 };
   const panelH = chartLayout.panelHeight;
   const plotW = width - pad.left - pad.right;
   const x = (index) => pad.left + (records.length === 1 ? plotW / 2 : (index / (records.length - 1)) * plotW);
+  const monthTicks = monthlyTickIndexes();
 
   ctx.clearRect(0, 0, rect.width, rect.height);
   ctx.fillStyle = colors.paper;
@@ -263,24 +327,31 @@ function drawChart() {
   ctx.textBaseline = "middle";
 
   series.forEach((item, panelIndex) => {
-    const panelTop = pad.top + panelIndex * (panelH + panelGap);
+    const panelLayout = panelLayouts[panelIndex];
+    const panelTop = panelLayout.top;
+    const panelGap = panelLayout.hasPriceBand ? chartLayout.pricePanelGap : chartLayout.standardPanelGap;
     const panelBottom = panelTop + panelH;
     const cardX = 14;
     const cardY = panelTop - 38;
     const cardW = width - 28;
-    const cardH = panelH + 130;
+    const cardH = panelH + panelGap - 6;
     const axis = volumeAxis[item.fuel] ?? volumeAxis.gasoline;
     const maxDays = niceMax(Math.max(...item.points.map((point) => point.daysCover)) * 1.15);
     const prices = item.points.map((point) => point.price?.priceCpl).filter(Boolean);
-    const priceMin = prices.length ? Math.min(...prices) : 0;
-    const priceMax = prices.length ? Math.max(...prices) : 1;
-    const priceSpan = Math.max(priceMax - priceMin, 1);
+    const tgpAxis = prices.length
+      ? priceAxis(
+          prices,
+          item.fuel === "gasoline" ? 50 : 0,
+          ["gasoline", "diesel"].includes(item.fuel) ? 300 : Infinity,
+        )
+      : { min: 0, max: 1, ticks: [] };
     const yVolume = (value) =>
       panelBottom - ((value - axis.min) / (axis.max - axis.min)) * panelH;
     const yDays = (value) => panelBottom - (value / maxDays) * panelH;
-    const priceBandTop = panelBottom + 44;
-    const priceBandH = 44;
-    const yPrice = (value) => priceBandTop + priceBandH - ((value - priceMin) / priceSpan) * priceBandH;
+    const priceBandTop = panelBottom + 62;
+    const priceBandH = chartLayout.priceBandHeight;
+    const yPrice = (value) =>
+      priceBandTop + priceBandH - ((value - tgpAxis.min) / (tgpAxis.max - tgpAxis.min)) * priceBandH;
 
     ctx.save();
     roundedRect(ctx, cardX, cardY, cardW, cardH, 8);
@@ -363,8 +434,14 @@ function drawChart() {
     ctx.textBaseline = "top";
     ctx.fillStyle = colors.muted;
     ctx.font = "12px Inter, system-ui, sans-serif";
-    records.forEach((week, index) => {
-      const label = formatDate.format(parseDate(week.stockDate)).replace(" 2026", "");
+    monthTicks.forEach((index) => {
+      const date = parseDate(records[index].stockDate);
+      ctx.beginPath();
+      ctx.moveTo(x(index), panelBottom + 5);
+      ctx.lineTo(x(index), panelBottom + 11);
+      ctx.strokeStyle = colors.grid;
+      ctx.stroke();
+      const label = monthFormat.format(date);
       ctx.fillText(label, x(index), panelBottom + 22);
     });
 
@@ -375,8 +452,25 @@ function drawChart() {
       ctx.save();
       ctx.fillStyle = colors.muted;
       ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.font = "600 10px Inter, system-ui, sans-serif";
+      ctx.fillText("Sydney TGP (c/L)", pad.left, priceBandTop - 9);
+
+      ctx.textBaseline = "middle";
       ctx.font = "10px Inter, system-ui, sans-serif";
-      ctx.fillText("Sydney TGP", pad.left - 34, priceBandTop + priceBandH / 2);
+      tgpAxis.ticks.forEach((value) => {
+        const y = yPrice(value);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(width - pad.right, y);
+        ctx.strokeStyle = colors.grid;
+        ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = "right";
+        ctx.fillText(numberFormat.format(value), pad.left - 10, y);
+      });
+
       drawLine(ctx, pricePoints, colors.price, [1, 6], 2);
       ctx.restore();
     }
