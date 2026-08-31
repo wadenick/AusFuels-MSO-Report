@@ -44,6 +44,7 @@ const chartLayout = {
   priceBottom: 176,
   standardBottom: 68,
   priceBandHeight: 84,
+  dieselBottomPadding: 10,
 };
 
 let records = [];
@@ -291,17 +292,20 @@ function drawChart() {
   let nextPanelTop = chartLayout.top;
   const panelLayouts = series.map((item) => {
     const hasPriceBand = item.points.filter((point) => point.price).length > 1;
-    const layout = { top: nextPanelTop, hasPriceBand };
+    const bottomPadding = item.fuel === "diesel" ? chartLayout.dieselBottomPadding : 0;
+    const layout = { top: nextPanelTop, hasPriceBand, bottomPadding };
     nextPanelTop +=
       chartLayout.panelHeight +
-      (hasPriceBand ? chartLayout.pricePanelGap : chartLayout.standardPanelGap);
+      (hasPriceBand ? chartLayout.pricePanelGap : chartLayout.standardPanelGap) +
+      bottomPadding;
     return layout;
   });
   const lastPanel = panelLayouts.at(-1);
   const wrapHeight =
     lastPanel.top +
     chartLayout.panelHeight +
-    (lastPanel.hasPriceBand ? chartLayout.priceBottom : chartLayout.standardBottom);
+    (lastPanel.hasPriceBand ? chartLayout.priceBottom : chartLayout.standardBottom) +
+    lastPanel.bottomPadding;
   canvas.parentElement.style.height = `${wrapHeight}px`;
 
   const ctx = canvas.getContext("2d");
@@ -329,7 +333,9 @@ function drawChart() {
   series.forEach((item, panelIndex) => {
     const panelLayout = panelLayouts[panelIndex];
     const panelTop = panelLayout.top;
-    const panelGap = panelLayout.hasPriceBand ? chartLayout.pricePanelGap : chartLayout.standardPanelGap;
+    const panelGap =
+      (panelLayout.hasPriceBand ? chartLayout.pricePanelGap : chartLayout.standardPanelGap) +
+      panelLayout.bottomPadding;
     const panelBottom = panelTop + panelH;
     const cardX = 14;
     const cardY = panelTop - 38;
