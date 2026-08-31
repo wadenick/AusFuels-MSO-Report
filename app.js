@@ -44,7 +44,7 @@ const chartLayout = {
   priceBottom: 186,
   standardBottom: 68,
   priceBandHeight: 84,
-  dieselBottomPadding: 8,
+  dieselBottomPadding: 6,
 };
 
 let records = [];
