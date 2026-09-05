@@ -89,6 +89,22 @@ function priceFor(fuel, stockDate) {
     .sort((a, b) => parseDate(b.date) - parseDate(a.date))[0]?.[fuel] ?? null;
 }
 
+function aviationPriceFor(fuel, stockDate) {
+  if (fuel !== "kerosene" || !aviationPrices.length) return null;
+
+  const targetMonth = stockDate.slice(0, 7);
+  const observation = aviationPrices.find(
+    (record) => record.month === targetMonth && Number.isFinite(record.jetA1),
+  );
+
+  return observation
+    ? {
+        priceCpl: observation.jetA1 * 100,
+        month: observation.month,
+      }
+    : null;
+}
+
 function flatten(data) {
   return data
     .slice()
@@ -103,6 +119,7 @@ function flatten(data) {
         msoRequiredML: values.msoRequiredML,
         daysCover: values.daysCover,
         price: priceFor(fuel, week.stockDate),
+        aviationPrice: aviationPriceFor(fuel, week.stockDate),
         surplusML: values.volumeML - values.msoRequiredML,
         coverage: (values.volumeML / values.msoRequiredML) * 100,
       })),
@@ -681,6 +698,7 @@ function renderTable() {
           <td>${formatPct(row.coverage)}</td>
           <td>${row.daysCover}</td>
           <td>${row.price ? `${priceFormat.format(row.price.priceCpl)} c/L` : "—"}</td>
+          <td>${row.aviationPrice ? `${priceFormat.format(row.aviationPrice.priceCpl)} c/L` : "—"}</td>
         </tr>
       `,
     )

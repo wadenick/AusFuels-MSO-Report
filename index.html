@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Australia Fuel Stocks MSO Dashboard</title>
     <link rel="icon" href="assets/aus-gas-pump.ico" sizes="any" />
-    <link rel="stylesheet" href="styles.css?v=20260905-aviation-prices" />
+    <link rel="stylesheet" href="styles.css?v=20260905-aviation-table" />
   </head>
   <body>
     <main class="shell">
@@ -68,7 +68,7 @@
           <summary class="table-summary">
             <span>
               <span id="table-title" class="summary-title">Weekly observations</span>
-              <span class="summary-note">Source data, sorted newest first from <a href="https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics" target="_blank" rel="noopener noreferrer">dceew.gov.au</a> weekly reports data, with Sydney petrol and diesel TGPs from <a href="https://www.aip.com.au/pricing/terminal-gate-prices" target="_blank" rel="noopener noreferrer">AIP</a>. If you're seeking retail price data/trends, try <a href="https://petrolmate.com.au/australia" target="_blank" rel="noopener noreferrer">Petrolmate</a>.</span>
+              <span class="summary-note">Source data, sorted newest first from <a href="https://www.dcceew.gov.au/energy/security/australias-fuel-security/minimum-stockholding-obligation/statistics" target="_blank" rel="noopener noreferrer">dceew.gov.au</a> weekly reports data, with Sydney petrol and diesel TGPs from <a href="https://www.aip.com.au/pricing/terminal-gate-prices" target="_blank" rel="noopener noreferrer">AIP</a> and monthly Jet A1 retail prices from <a href="https://www.shellharbourairport.com.au/operational-information/aviation-fuel/" target="_blank" rel="noopener noreferrer">Shellharbour Airport</a>. If you're seeking other retail price data/trends, try <a href="https://petrolmate.com.au/australia" target="_blank" rel="noopener noreferrer">Petrolmate</a>.</span>
             </span>
             <span class="chevron" aria-hidden="true"></span>
           </summary>
@@ -90,6 +90,12 @@
                       <span class="help-tooltip" role="tooltip">AIP Terminal Gate Price average; not retail pump average.</span>
                     </span>
                   </th>
+                  <th>
+                    <span class="has-help" tabindex="0">
+                      Shellharbour Jet A1
+                      <span class="help-tooltip" role="tooltip">Monthly retail posted airfield price for the stock date's calendar month.</span>
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody id="data-table"></tbody>
@@ -99,6 +105,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=20260905-price-tooltips"></script>
+    <script src="app.js?v=20260905-aviation-table"></script>
   </body>
 </html>
