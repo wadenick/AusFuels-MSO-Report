@@ -1,0 +1,12 @@
+{
+  "source": "Shellharbour Airport posted airfield prices",
+  "sourceUrl": "https://www.shellharbourairport.com.au/operational-information/aviation-fuel/",
+  "unit": "AUDPerLitre",
+  "prices": [
+    {
+      "month": "2026-09",
+      "jetA1": 2.869,
+      "avgas100LL": 3.145
+    }
+  ]
+}

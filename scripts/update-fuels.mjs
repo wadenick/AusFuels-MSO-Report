@@ -1,3 +1,4 @@
+import { updateAviationPrices } from "./aviation-prices.mjs";
 import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -792,6 +793,7 @@ async function updatePriceData(stockRecords) {
 
 async function main() {
   const records = JSON.parse(await fs.readFile(DATA_PATH, "utf8"));
+  await updateAviationPrices(fetchWithCurl);
   const localLatest = latestLocalStockDate(records);
   let status = {
     lastUpdatedText: null,

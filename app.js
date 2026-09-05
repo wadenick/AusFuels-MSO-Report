@@ -49,6 +49,7 @@ const chartLayout = {
 
 let records = [];
 let priceRecords = [];
+let aviationPrices = [];
 let priceMeta = null;
 let selectedFuel = "all";
 let showDaysCover = true;
@@ -171,6 +172,7 @@ function renderLegend() {
     .map((fuel) => `<span><i class="legend-${fuel}"></i>${fuelLabels[fuel] || fuel}</span>`)
     .join("");
   document.querySelector("#price-legend").hidden = !hasPrices;
+  document.querySelector("#aviation-source").hidden = !visibleFuelKeys().includes("kerosene") || !aviationPrices.length;
 }
 
 function visibleFuelKeys() {
@@ -261,10 +263,10 @@ function drawLine(ctx, points, color, dashPattern = [], width = 3) {
   ctx.restore();
 }
 
-function drawPoints(ctx, points, color) {
+function drawPoints(ctx, points, color, radius = 4) {
   points.forEach((point) => {
     ctx.beginPath();
-    ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fillStyle = colors.paper;
     ctx.fill();
     ctx.strokeStyle = color;
@@ -291,8 +293,8 @@ function drawChart() {
   const series = selectedSeries();
   let nextPanelTop = chartLayout.top;
   const panelLayouts = series.map((item) => {
-    const hasPriceBand = item.points.filter((point) => point.price).length > 1;
-    const bottomPadding = item.fuel === "diesel" ? chartLayout.dieselBottomPadding : 0;
+    const hasPriceBand = item.fuel === "kerosene" ? aviationPrices.length > 0 : item.points.filter((point) => point.price).length > 1;
+    const bottomPadding = ["kerosene", "diesel"].includes(item.fuel) ? chartLayout.dieselBottomPadding : 0;
     const layout = { top: nextPanelTop, hasPriceBand, bottomPadding };
     nextPanelTop +=
       chartLayout.panelHeight +
@@ -320,6 +322,17 @@ function drawChart() {
   const panelH = chartLayout.panelHeight;
   const plotW = width - pad.left - pad.right;
   const x = (index) => pad.left + (records.length === 1 ? plotW / 2 : (index / (records.length - 1)) * plotW);
+  const xForDate = (dateValue) => {
+    const target = parseDate(dateValue).getTime();
+    const dates = records.map((record) => parseDate(record.stockDate).getTime());
+    if (target <= dates[0]) return x(0);
+    if (target >= dates.at(-1)) return x(records.length - 1);
+
+    const upperIndex = dates.findIndex((date) => date >= target);
+    const lowerIndex = upperIndex - 1;
+    const fraction = (target - dates[lowerIndex]) / (dates[upperIndex] - dates[lowerIndex]);
+    return x(lowerIndex + fraction);
+  };
   const monthTicks = monthlyTickIndexes();
 
   ctx.clearRect(0, 0, rect.width, rect.height);
@@ -451,6 +464,10 @@ function drawChart() {
       ctx.fillText(label, x(index), panelBottom + 22);
     });
 
+    if (item.fuel === "kerosene" && aviationPrices.length) {
+      drawAviationPrices(ctx, pad.left, width - pad.right, priceBandTop, priceBandH, xForDate);
+    }
+
     if (prices.length > 1) {
       const pricePoints = item.points
         .map((point, index) => (point.price ? { x: x(index), y: yPrice(point.price.priceCpl) } : null))
@@ -481,6 +498,45 @@ function drawChart() {
       ctx.restore();
     }
   });
+}
+
+function drawAviationPrices(ctx, left, right, top, height, xForDate) {
+  const axis = { min: 200, max: 350, ticks: [200, 250, 300, 350] };
+  const yCents = (value) => top + height - (value - axis.min) / (axis.max - axis.min) * height;
+  const y = (value) => yCents(value * 100);
+  const monthLabel = (month) => new Intl.DateTimeFormat("en-AU", {month: "short", year: "numeric"}).format(parseDate(`${month}-01`));
+  ctx.save();
+  ctx.fillStyle = colors.muted;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.font = "600 10px Inter, system-ui, sans-serif";
+  ctx.fillText("Shellharbour retail (c/L) · monthly", left, top - 9);
+  ctx.font = "10px Inter, system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  axis.ticks.forEach((value) => {
+    ctx.beginPath();
+    ctx.moveTo(left, yCents(value));
+    ctx.lineTo(right, yCents(value));
+    ctx.strokeStyle = colors.grid;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.fillStyle = colors.muted;
+    ctx.textAlign = "right";
+    ctx.fillText(numberFormat.format(value), left - 10, yCents(value));
+  });
+  [
+    {key: "jetA1", label: "Jet A1", color: colors.price},
+    {key: "avgas100LL", label: "Avgas 100LL", color: "#9333a8"},
+  ].forEach(({key, label, color}) => {
+    const points = aviationPrices.map((record) => ({x: xForDate(`${record.month}-01`), y: y(record[key])}));
+    drawLine(ctx, points, color, [1, 6], 2);
+    drawPoints(ctx, points, color, 2.5);
+    points.forEach((point, i) => chartHitTargets.push({
+      ...point, aviation: true, color, fuelName: label,
+      month: monthLabel(aviationPrices[i].month), value: aviationPrices[i][key],
+    }));
+  });
+  ctx.restore();
 }
 
 function hideChartTooltip() {
@@ -515,7 +571,11 @@ function renderChartTooltip(event) {
   const priceLine = nearest.price
     ? `<span>${nearest.price.label}: ${priceFormat.format(nearest.price.priceCpl)} c/L</span>`
     : "";
-  tooltip.innerHTML = `
+  tooltip.innerHTML = nearest.aviation ? `
+    <strong style="color: ${nearest.color}">${nearest.fuelName}</strong>
+    <span>${nearest.month} · ${(nearest.value * 100).toFixed(1)} c/L</span>
+    <span>Shellharbour Airport retail</span>
+  ` : `
     <strong style="color: ${nearest.color}">${nearest.fuelName} · ${formatDate.format(parseDate(nearest.stockDate))}</strong>
     <span>Stock: ${numberFormat.format(nearest.volumeML)} ML</span>
     <span>MSO: ${numberFormat.format(nearest.msoRequiredML)} ML</span>
@@ -603,7 +663,8 @@ function renderSubtitle() {
   const priceContext = visibleFuelKeys().some((fuel) => ["gasoline", "diesel"].includes(fuel))
     ? ", with Sydney TGP overlay"
     : "";
-  document.querySelector("#chart-subtitle").textContent = `Stock and MSO levels by stock date for ${label}${priceContext}`;
+  const aviationContext = visibleFuelKeys().includes("kerosene") && aviationPrices.length ? "; Shellharbour monthly retail aviation prices" : "";
+  document.querySelector("#chart-subtitle").textContent = `Stock and MSO levels by stock date for ${label}${priceContext}${aviationContext}`;
   document.querySelector("#show-days-cover").checked = showDaysCover;
 }
 
@@ -625,6 +686,10 @@ async function init() {
   if (priceResponse?.ok) {
     priceMeta = await priceResponse.json();
     priceRecords = (priceMeta.prices ?? []).sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  }
+  const aviationResponse = await fetch("data/aviation-prices.json").catch(() => null);
+  if (aviationResponse?.ok) {
+    aviationPrices = ((await aviationResponse.json()).prices ?? []).sort((a, b) => a.month.localeCompare(b.month));
   }
   records = (await response.json()).sort((a, b) => parseDate(a.stockDate) - parseDate(b.stockDate));
   renderHeader();

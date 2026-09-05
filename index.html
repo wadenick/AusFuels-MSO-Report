@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Australia Fuel Stocks MSO Dashboard</title>
     <link rel="icon" href="assets/aus-gas-pump.ico" sizes="any" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260905-aviation-prices" />
   </head>
   <body>
     <main class="shell">
@@ -56,6 +56,7 @@
             </span>
           </div>
         </div>
+        <p id="aviation-source" class="summary-note">Monthly aviation retail prices: <a href="https://www.shellharbourairport.com.au/operational-information/aviation-fuel/" target="_blank" rel="noopener noreferrer">Shellharbour Airport</a>, AUD per litre. Jet A1 and Avgas 100LL share the stock date axis above; Avgas is aviation gasoline.</p>
         <div class="canvas-wrap">
           <canvas id="volume-chart" width="1200" height="860" aria-label="Fuel stock line chart"></canvas>
           <div id="chart-tooltip" class="chart-tooltip" role="status" aria-live="polite"></div>
@@ -98,6 +99,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=20260831-tgp-label-gap"></script>
+    <script src="app.js?v=20260905-aviation-bottom-padding"></script>
   </body>
 </html>

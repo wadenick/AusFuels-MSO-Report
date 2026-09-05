@@ -545,3 +545,13 @@ td:nth-child(6).negative {
   }
 
 }
+
+#price-legend[hidden],
+#aviation-source[hidden] {
+  display: none;
+}
+
+#aviation-source {
+  margin: 0 20px 12px;
+  line-height: 1.5;
+}
