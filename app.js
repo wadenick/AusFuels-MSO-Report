@@ -495,6 +495,7 @@ function drawChart() {
       });
 
       drawLine(ctx, pricePoints, colors.price, [1, 6], 2);
+      drawPoints(ctx, pricePoints, colors.price, 2);
       ctx.restore();
     }
   });
@@ -530,7 +531,7 @@ function drawAviationPrices(ctx, left, right, top, height, xForDate) {
   ].forEach(({key, label, color}) => {
     const points = aviationPrices.map((record) => ({x: xForDate(`${record.month}-01`), y: y(record[key])}));
     drawLine(ctx, points, color, [1, 6], 2);
-    drawPoints(ctx, points, color, 2.5);
+    drawPoints(ctx, points, color, 2);
     points.forEach((point, i) => chartHitTargets.push({
       ...point, aviation: true, color, fuelName: label,
       month: monthLabel(aviationPrices[i].month), value: aviationPrices[i][key],
