@@ -426,7 +426,7 @@ canvas {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1180px;
+  min-width: 1280px;
 }
 
 th,
@@ -454,6 +454,21 @@ th {
   font-size: 0.74rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+th[rowspan="2"],
+th.price-group {
+  vertical-align: middle;
+}
+
+th.price-group {
+  padding-bottom: 5px;
+  text-align: center;
+}
+
+thead tr:nth-child(2) th {
+  padding-top: 5px;
+  text-align: center;
 }
 
 td:nth-child(6).positive {

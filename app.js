@@ -94,12 +94,16 @@ function aviationPriceFor(fuel, stockDate) {
 
   const targetMonth = stockDate.slice(0, 7);
   const observation = aviationPrices.find(
-    (record) => record.month === targetMonth && Number.isFinite(record.jetA1),
+    (record) =>
+      record.month === targetMonth &&
+      Number.isFinite(record.jetA1) &&
+      Number.isFinite(record.avgas100LL),
   );
 
   return observation
     ? {
-        priceCpl: observation.jetA1 * 100,
+        jetA1Cpl: observation.jetA1 * 100,
+        avgas100LLCpl: observation.avgas100LL * 100,
         month: observation.month,
       }
     : null;
@@ -698,7 +702,8 @@ function renderTable() {
           <td>${formatPct(row.coverage)}</td>
           <td>${row.daysCover}</td>
           <td>${row.price ? `${priceFormat.format(row.price.priceCpl)} c/L` : "—"}</td>
-          <td>${row.aviationPrice ? `${priceFormat.format(row.aviationPrice.priceCpl)} c/L` : "—"}</td>
+          <td>${row.aviationPrice ? `${priceFormat.format(row.aviationPrice.jetA1Cpl)} c/L` : "—"}</td>
+          <td>${row.aviationPrice ? `${priceFormat.format(row.aviationPrice.avgas100LLCpl)} c/L` : "—"}</td>
         </tr>
       `,
     )
