@@ -193,7 +193,6 @@ function renderLegend() {
     .map((fuel) => `<span><i class="legend-${fuel}"></i>${fuelLabels[fuel] || fuel}</span>`)
     .join("");
   document.querySelector("#price-legend").hidden = !hasPrices;
-  document.querySelector("#aviation-source").hidden = !visibleFuelKeys().includes("kerosene") || !aviationPrices.length;
 }
 
 function visibleFuelKeys() {
