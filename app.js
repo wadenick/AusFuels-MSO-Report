@@ -470,7 +470,16 @@ function drawChart() {
 
     if (prices.length > 1) {
       const pricePoints = item.points
-        .map((point, index) => (point.price ? { x: x(index), y: yPrice(point.price.priceCpl) } : null))
+        .map((point, index) =>
+          point.price
+            ? {
+                x: x(index),
+                y: yPrice(point.price.priceCpl),
+                stockDate: point.stockDate,
+                price: point.price,
+              }
+            : null,
+        )
         .filter(Boolean);
       ctx.save();
       ctx.fillStyle = colors.muted;
@@ -496,6 +505,17 @@ function drawChart() {
 
       drawLine(ctx, pricePoints, colors.price, [1, 6], 2);
       drawPoints(ctx, pricePoints, colors.price, 2);
+      pricePoints.forEach((point) => {
+        chartHitTargets.push({
+          x: point.x,
+          y: point.y,
+          priceTrend: true,
+          color: colors.price,
+          fuelName: item.fuelName,
+          stockDate: point.stockDate,
+          price: point.price,
+        });
+      });
       ctx.restore();
     }
   });
@@ -572,18 +592,26 @@ function renderChartTooltip(event) {
   const priceLine = nearest.price
     ? `<span>${nearest.price.label}: ${priceFormat.format(nearest.price.priceCpl)} c/L</span>`
     : "";
-  tooltip.innerHTML = nearest.aviation ? `
-    <strong style="color: ${nearest.color}">${nearest.fuelName}</strong>
-    <span>${nearest.month} · ${(nearest.value * 100).toFixed(1)} c/L</span>
-    <span>Shellharbour Airport retail</span>
-  ` : `
+  tooltip.innerHTML = nearest.aviation
+    ? `
+      <strong style="color: ${nearest.color}">${nearest.fuelName}</strong>
+      <span>${nearest.month} · ${(nearest.value * 100).toFixed(1)} c/L</span>
+      <span>Shellharbour Airport retail</span>
+    `
+    : nearest.priceTrend
+      ? `
+        <strong style="color: ${nearest.color}">${nearest.fuelName}</strong>
+        <span>${formatDate.format(parseDate(nearest.stockDate))} · ${priceFormat.format(nearest.price.priceCpl)} c/L</span>
+        <span>${nearest.price.label}</span>
+      `
+      : `
     <strong style="color: ${nearest.color}">${nearest.fuelName} · ${formatDate.format(parseDate(nearest.stockDate))}</strong>
     <span>Stock: ${numberFormat.format(nearest.volumeML)} ML</span>
     <span>MSO: ${numberFormat.format(nearest.msoRequiredML)} ML</span>
     <span>Surplus: ${delta}</span>
     <span>Days cover: ${nearest.daysCover}</span>
     ${priceLine}
-  `;
+    `;
   tooltip.style.display = "block";
 
   const left = event.clientX - wrapRect.left + 14;
