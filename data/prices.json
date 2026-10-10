@@ -1,10 +1,10 @@
 {
   "source": "Australian Institute of Petroleum Terminal Gate Prices",
   "sourceUrl": "https://www.aip.com.au/pricing/terminal-gate-prices",
-  "workbookUrl": "https://aip.com.au/wp-content/uploads/2026/09/AIP_TGP_Data_02-Oct-2026.xlsx",
+  "workbookUrl": "https://aip.com.au/wp-content/uploads/2026/10/AIP_TGP_Data_09-Oct-2026.xlsx",
   "location": "Sydney",
   "unit": "centsPerLitre",
-  "updatedAt": "2026-10-04",
+  "updatedAt": "2026-10-10",
   "prices": [
     {
       "date": "2026-03-17",
